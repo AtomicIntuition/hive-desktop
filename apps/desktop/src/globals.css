@@ -1,0 +1,67 @@
+@import "tailwindcss";
+
+/* ── Hive Desktop Design Tokens ──────────────────────── */
+
+@theme {
+  --color-surface: #0f1117;
+  --color-surface-elevated: #1a1d27;
+  --color-border-subtle: rgba(255, 255, 255, 0.06);
+  --color-border-muted: rgba(255, 255, 255, 0.1);
+
+  --color-primary: #8B5CF6;
+  --color-primary-hover: #7C3AED;
+  --color-primary-muted: rgba(139, 92, 246, 0.15);
+
+  --color-accent: #F59E0B;
+  --color-accent-hover: #D97706;
+  --color-accent-muted: rgba(245, 158, 11, 0.15);
+
+  --color-success: #10B981;
+  --color-success-muted: rgba(16, 185, 129, 0.15);
+  --color-error: #EF4444;
+  --color-error-muted: rgba(239, 68, 68, 0.15);
+  --color-warning: #F59E0B;
+  --color-warning-muted: rgba(245, 158, 11, 0.15);
+
+  --font-sans: "Geist Sans", "Inter", system-ui, -apple-system, sans-serif;
+  --font-mono: "Geist Mono", "JetBrains Mono", ui-monospace, monospace;
+}
+
+/* ── Base ────────────────────────────────────────────── */
+
+body {
+  background-color: #030712;
+  color: #f9fafb;
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  overflow: hidden;
+}
+
+/* Prevent text selection on UI elements (desktop app feel) */
+button,
+nav,
+[data-no-select] {
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* ── Scrollbar ───────────────────────────────────────── */
+
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
