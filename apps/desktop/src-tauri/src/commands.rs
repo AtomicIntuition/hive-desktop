@@ -1,3 +1,5 @@
+use tauri::Manager;
+
 /// Get the runtime server port
 #[tauri::command]
 pub fn get_runtime_port() -> u16 {
@@ -16,6 +18,6 @@ pub fn get_data_dir(app: tauri::AppHandle) -> Result<String, String> {
     let path = app
         .path()
         .app_data_dir()
-        .map_err(|e| e.to_string())?;
+        .map_err(|e: tauri::Error| e.to_string())?;
     Ok(path.to_string_lossy().to_string())
 }

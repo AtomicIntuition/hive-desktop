@@ -1,12 +1,13 @@
 import { create } from "zustand";
-import type { McpServer } from "@hive-desktop/shared";
+import type { ServerStatus } from "@hive-desktop/shared";
+import type { ServerWithStatus } from "@/lib/runtime-client";
 
 interface ServerState {
-  servers: McpServer[];
+  servers: ServerWithStatus[];
   loading: boolean;
-  setServers: (servers: McpServer[]) => void;
+  setServers: (servers: ServerWithStatus[]) => void;
   setLoading: (loading: boolean) => void;
-  updateServerStatus: (id: string, status: McpServer["status"]) => void;
+  updateServerStatus: (id: string, status: ServerStatus) => void;
 }
 
 export const useServerStore = create<ServerState>((set) => ({
@@ -16,6 +17,8 @@ export const useServerStore = create<ServerState>((set) => ({
   setLoading: (loading) => set({ loading }),
   updateServerStatus: (id, status) =>
     set((state) => ({
-      servers: state.servers.map((s) => (s.id === id ? { ...s, status } : s)),
+      servers: state.servers.map((s) =>
+        s.id === id ? { ...s, status } : s
+      ),
     })),
 }));

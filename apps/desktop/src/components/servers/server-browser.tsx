@@ -1,14 +1,22 @@
 import { useState, useEffect, useCallback } from "react";
-import { Search, Download, Star, ExternalLink } from "lucide-react";
+import { Search, Download, Star, ExternalLink, Check, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { MarketTool } from "@hive-desktop/shared";
 import { HIVE_MARKET_URL } from "@/lib/constants";
+import { installServer } from "@/lib/runtime-client";
+import { useAppStore } from "@/stores/app-store";
 
-export function ServerBrowser() {
+interface ServerBrowserProps {
+  onInstalled?: () => void;
+  installedSlugs?: Set<string>;
+}
+
+export function ServerBrowser({ onInstalled, installedSlugs = new Set() }: ServerBrowserProps) {
   const [tools, setTools] = useState<MarketTool[]>([]);
   const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(false);
   const [category, setCategory] = useState("");
+  const runtimeConnected = useAppStore((s) => s.runtimeConnected);
 
   const searchTools = useCallback(async () => {
     setLoading(true);
@@ -16,9 +24,8 @@ export function ServerBrowser() {
       const params = new URLSearchParams();
       if (query) params.set("q", query);
       if (category) params.set("category", category);
-      params.set("limit", "20");
+      params.set("limit", "24");
 
-      // Try runtime proxy first, fall back to direct API
       let res: Response;
       try {
         res = await fetch(`http://127.0.0.1:45678/api/market/tools?${params}`);
@@ -55,9 +62,9 @@ export function ServerBrowser() {
 
   return (
     <div>
-      {/* Search + Filters */}
-      <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center">
-        <div className="relative flex-1">
+      {/* Search */}
+      <div className="mb-6">
+        <div className="relative">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-500" />
           <input
             type="text"
@@ -100,7 +107,13 @@ export function ServerBrowser() {
       ) : (
         <div className="grid grid-cols-1 gap-3 lg:grid-cols-2 xl:grid-cols-3">
           {tools.map((tool) => (
-            <ToolCard key={tool.slug} tool={tool} />
+            <MarketToolCard
+              key={tool.slug}
+              tool={tool}
+              installed={installedSlugs.has(tool.slug)}
+              runtimeConnected={runtimeConnected}
+              onInstalled={onInstalled}
+            />
           ))}
         </div>
       )}
@@ -108,12 +121,48 @@ export function ServerBrowser() {
   );
 }
 
-function ToolCard({ tool }: { tool: MarketTool }) {
+function MarketToolCard({
+  tool,
+  installed,
+  runtimeConnected,
+  onInstalled,
+}: {
+  tool: MarketTool;
+  installed: boolean;
+  runtimeConnected: boolean;
+  onInstalled?: () => void;
+}) {
+  const [installing, setInstalling] = useState(false);
+  const [justInstalled, setJustInstalled] = useState(false);
+
+  const handleInstall = async () => {
+    if (!tool.npmPackage || !runtimeConnected) return;
+    setInstalling(true);
+    try {
+      await installServer({
+        slug: tool.slug,
+        name: tool.name,
+        description: tool.description,
+        npmPackage: tool.npmPackage,
+        installCommand: tool.installCommand ?? "npx",
+        envVars: tool.envVars,
+      });
+      setJustInstalled(true);
+      onInstalled?.();
+    } catch (err) {
+      console.error("Install failed:", err);
+    } finally {
+      setInstalling(false);
+    }
+  };
+
+  const isInstalled = installed || justInstalled;
+
   return (
     <div className="group rounded-xl border border-white/[0.06] bg-gray-900/50 p-4 transition-colors hover:border-white/[0.1]">
-      <div className="flex items-start justify-between">
-        <div className="flex-1">
-          <h3 className="font-medium text-gray-100">{tool.name}</h3>
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex-1 min-w-0">
+          <h3 className="font-medium text-gray-100 truncate">{tool.name}</h3>
           <p className="mt-1 line-clamp-2 text-sm text-gray-400">{tool.description}</p>
         </div>
       </div>
@@ -141,17 +190,34 @@ function ToolCard({ tool }: { tool: MarketTool }) {
           </span>
         </div>
         <div className="flex items-center gap-1">
-          <button className="rounded-lg p-1.5 text-gray-400 opacity-0 transition-opacity group-hover:opacity-100 hover:bg-violet-500/10 hover:text-violet-400">
-            <Download className="h-4 w-4" />
-          </button>
+          {isInstalled ? (
+            <span className="flex items-center gap-1 rounded-lg px-3 py-1.5 text-xs font-medium text-emerald-400">
+              <Check className="h-3.5 w-3.5" /> Installed
+            </span>
+          ) : tool.npmPackage ? (
+            <button
+              onClick={handleInstall}
+              disabled={installing || !runtimeConnected}
+              className="flex items-center gap-1.5 rounded-lg bg-violet-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-violet-700 disabled:opacity-40"
+            >
+              {installing ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <Download className="h-3.5 w-3.5" />
+              )}
+              Install
+            </button>
+          ) : (
+            <span className="text-xs text-gray-600">No package</span>
+          )}
           {tool.githubUrl && (
             <a
               href={tool.githubUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="rounded-lg p-1.5 text-gray-400 opacity-0 transition-opacity group-hover:opacity-100 hover:bg-white/[0.06] hover:text-gray-300"
+              className="rounded-lg p-1.5 text-gray-500 hover:bg-white/[0.06] hover:text-gray-300"
             >
-              <ExternalLink className="h-4 w-4" />
+              <ExternalLink className="h-3.5 w-3.5" />
             </a>
           )}
         </div>

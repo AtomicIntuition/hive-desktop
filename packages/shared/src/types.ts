@@ -127,6 +127,35 @@ export interface MarketStack {
   tools: string[];
 }
 
+// ── MCP Tool ───────────────────────────────────────────
+
+export interface McpTool {
+  name: string;
+  description: string;
+  inputSchema: Record<string, unknown>;
+}
+
+export interface McpToolCallResult {
+  content: McpToolContent[];
+  isError?: boolean;
+  structuredContent?: Record<string, unknown>;
+}
+
+export type McpToolContent =
+  | { type: "text"; text: string }
+  | { type: "image"; data: string; mimeType: string }
+  | { type: "resource"; resource: { uri: string; text?: string } };
+
+// ── Server Log ─────────────────────────────────────────
+
+export interface ServerLog {
+  id: string;
+  serverId: string;
+  level: "info" | "warn" | "error" | "debug";
+  message: string;
+  timestamp: string;
+}
+
 // ── Dashboard Stats ────────────────────────────────────
 
 export interface DashboardStats {

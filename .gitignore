@@ -30,8 +30,16 @@ npm-debug.log*
 
 # Database
 *.db
+*.db-shm
+*.db-wal
 *.db-journal
 
 # Tauri
 apps/desktop/src-tauri/target/
 apps/desktop/src-tauri/gen/
+
+# Build outputs (generated)
+packages/shared/dist/
+packages/runtime/dist/
+apps/desktop/dist/
+apps/desktop/dist-node/

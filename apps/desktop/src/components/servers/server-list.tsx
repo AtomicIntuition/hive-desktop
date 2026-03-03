@@ -1,8 +1,12 @@
 import { useServers } from "@/hooks/use-servers";
 import { ServerCard } from "./server-card";
 
-export function ServerList() {
-  const { servers, loading } = useServers();
+interface ServerListProps {
+  onSelectServer?: (id: string) => void;
+}
+
+export function ServerList({ onSelectServer }: ServerListProps) {
+  const { servers, loading, refresh } = useServers();
 
   if (loading) {
     return (
@@ -24,7 +28,12 @@ export function ServerList() {
   return (
     <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
       {servers.map((server) => (
-        <ServerCard key={server.id} server={server} />
+        <ServerCard
+          key={server.id}
+          server={server}
+          onSelect={() => onSelectServer?.(server.id)}
+          onRefresh={refresh}
+        />
       ))}
     </div>
   );

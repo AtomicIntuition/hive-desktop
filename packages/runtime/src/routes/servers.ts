@@ -1,98 +1,158 @@
 import type { FastifyInstance } from "fastify";
-import { getDb } from "../db/index.js";
-import { nanoid } from "nanoid";
-import type { McpServer } from "@hive-desktop/shared";
+import { mcpManager } from "../mcp/manager.js";
+import { connectToServer, callTool, listTools, disconnectFromServer, isConnected } from "../mcp/client.js";
+import { installServer, uninstallServer } from "../mcp/installer.js";
+import * as registry from "../mcp/registry.js";
+import { broadcast } from "../server.js";
+import type { ServerEnvVar } from "@hive-desktop/shared";
 
 export async function serverRoutes(app: FastifyInstance): Promise<void> {
-  // List all installed servers
+  // ── CRUD ──────────────────────────────────────────────
+
+  // List all installed servers (enriched with live status)
   app.get("/api/servers", async () => {
-    const db = getDb();
-    const rows = db.prepare("SELECT * FROM servers ORDER BY installed_at DESC").all();
-    return rows.map(mapServerRow);
+    const servers = registry.getAll();
+    return servers.map((s) => {
+      const managed = mcpManager.get(s.id);
+      return {
+        ...s,
+        status: managed?.status ?? s.status,
+        pid: managed?.process?.pid ?? s.pid,
+        connected: isConnected(s.id),
+      };
+    });
   });
 
-  // Get a single server
+  // Get a single server with live status
   app.get<{ Params: { id: string } }>("/api/servers/:id", async (request, reply) => {
-    const db = getDb();
-    const row = db.prepare("SELECT * FROM servers WHERE id = ?").get(request.params.id);
-    if (!row) return reply.status(404).send({ error: "Server not found" });
-    return mapServerRow(row);
+    const server = registry.getById(request.params.id);
+    if (!server) return reply.status(404).send({ error: "Server not found" });
+    const managed = mcpManager.get(server.id);
+    return {
+      ...server,
+      status: managed?.status ?? server.status,
+      pid: managed?.process?.pid ?? server.pid,
+      connected: isConnected(server.id),
+    };
   });
 
-  // Install a new server
-  app.post<{ Body: { slug: string; name: string; npmPackage?: string; installCommand?: string; envVars?: string } }>(
-    "/api/servers",
-    async (request) => {
-      const db = getDb();
-      const id = nanoid();
-      const { slug, name, npmPackage, installCommand, envVars } = request.body;
-
-      db.prepare(
-        `INSERT INTO servers (id, slug, name, npm_package, install_command, env_vars)
-         VALUES (?, ?, ?, ?, ?, ?)`
-      ).run(id, slug, name, npmPackage ?? null, installCommand ?? "npx", envVars ?? null);
-
-      const row = db.prepare("SELECT * FROM servers WHERE id = ?").get(id);
-      return mapServerRow(row);
+  // Install a new server from marketplace data
+  app.post<{
+    Body: {
+      slug: string;
+      name: string;
+      description?: string;
+      npmPackage: string;
+      installCommand?: "npx" | "uvx";
+      envVars?: ServerEnvVar[];
+    };
+  }>("/api/servers", async (request, reply) => {
+    try {
+      const server = await installServer(request.body);
+      broadcast({ type: "server:installed", data: { server } });
+      return server;
+    } catch (err) {
+      return reply.status(409).send({ error: (err as Error).message });
     }
-  );
+  });
 
-  // Update server status
-  app.patch<{ Params: { id: string }; Body: { status?: string; pid?: number } }>(
-    "/api/servers/:id",
-    async (request, reply) => {
-      const db = getDb();
-      const { status, pid } = request.body;
-      const updates: string[] = [];
-      const values: unknown[] = [];
-
-      if (status) {
-        updates.push("status = ?");
-        values.push(status);
-      }
-      if (pid !== undefined) {
-        updates.push("pid = ?");
-        values.push(pid);
-      }
-      if (status === "running") {
-        updates.push("last_started_at = datetime('now')");
-      }
-
-      if (updates.length === 0) return reply.status(400).send({ error: "No updates provided" });
-
-      values.push(request.params.id);
-      db.prepare(`UPDATE servers SET ${updates.join(", ")} WHERE id = ?`).run(...values);
-
-      const row = db.prepare("SELECT * FROM servers WHERE id = ?").get(request.params.id);
-      if (!row) return reply.status(404).send({ error: "Server not found" });
-      return mapServerRow(row);
-    }
-  );
-
-  // Delete a server
+  // Remove a server
   app.delete<{ Params: { id: string } }>("/api/servers/:id", async (request, reply) => {
-    const db = getDb();
-    const result = db.prepare("DELETE FROM servers WHERE id = ?").run(request.params.id);
-    if (result.changes === 0) return reply.status(404).send({ error: "Server not found" });
+    const { id } = request.params;
+    // Stop first if running
+    await mcpManager.stop(id);
+    await disconnectFromServer(id);
+    const removed = uninstallServer(id);
+    if (!removed) return reply.status(404).send({ error: "Server not found" });
+    broadcast({ type: "server:removed", data: { id } });
     return { success: true };
   });
-}
 
-function mapServerRow(row: unknown): McpServer {
-  const r = row as Record<string, unknown>;
-  return {
-    id: r.id as string,
-    slug: r.slug as string,
-    name: r.name as string,
-    description: (r.description as string) ?? "",
-    npmPackage: r.npm_package as string | undefined,
-    installCommand: (r.install_command as "npx" | "uvx") ?? "npx",
-    status: (r.status as McpServer["status"]) ?? "stopped",
-    pid: r.pid as number | undefined,
-    port: r.port as number | undefined,
-    config: r.config ? JSON.parse(r.config as string) : undefined,
-    envVars: r.env_vars ? JSON.parse(r.env_vars as string) : undefined,
-    installedAt: r.installed_at as string,
-    lastStartedAt: r.last_started_at as string | undefined,
-  };
+  // ── Lifecycle ─────────────────────────────────────────
+
+  // Start a server
+  app.post<{ Params: { id: string } }>("/api/servers/:id/start", async (request, reply) => {
+    try {
+      const managed = await mcpManager.start(request.params.id);
+      return { status: managed.status, pid: managed.process?.pid };
+    } catch (err) {
+      return reply.status(500).send({ error: (err as Error).message });
+    }
+  });
+
+  // Stop a server
+  app.post<{ Params: { id: string } }>("/api/servers/:id/stop", async (request, reply) => {
+    try {
+      await mcpManager.stop(request.params.id);
+      await disconnectFromServer(request.params.id);
+      return { status: "stopped" };
+    } catch (err) {
+      return reply.status(500).send({ error: (err as Error).message });
+    }
+  });
+
+  // Restart a server
+  app.post<{ Params: { id: string } }>("/api/servers/:id/restart", async (request, reply) => {
+    try {
+      await disconnectFromServer(request.params.id);
+      const managed = await mcpManager.restart(request.params.id);
+      return { status: managed.status, pid: managed.process?.pid };
+    } catch (err) {
+      return reply.status(500).send({ error: (err as Error).message });
+    }
+  });
+
+  // ── Tools ─────────────────────────────────────────────
+
+  // List tools available on a running server
+  app.get<{ Params: { id: string } }>("/api/servers/:id/tools", async (request, reply) => {
+    try {
+      const tools = await listTools(request.params.id);
+      return { tools };
+    } catch (err) {
+      return reply.status(500).send({ error: (err as Error).message });
+    }
+  });
+
+  // Call a tool on a running server
+  app.post<{
+    Params: { id: string; tool: string };
+    Body: { arguments?: Record<string, unknown> };
+  }>("/api/servers/:id/tools/:tool/call", async (request, reply) => {
+    try {
+      const result = await callTool(
+        request.params.id,
+        request.params.tool,
+        request.body.arguments ?? {}
+      );
+      return result;
+    } catch (err) {
+      return reply.status(500).send({ error: (err as Error).message });
+    }
+  });
+
+  // Connect to a server (for tool discovery without calling)
+  app.post<{ Params: { id: string } }>("/api/servers/:id/connect", async (request, reply) => {
+    try {
+      const tools = await connectToServer(request.params.id);
+      broadcast({ type: "server:tools", data: { id: request.params.id, tools } });
+      return { tools, connected: true };
+    } catch (err) {
+      return reply.status(500).send({ error: (err as Error).message });
+    }
+  });
+
+  // Disconnect SDK client from a server
+  app.post<{ Params: { id: string } }>("/api/servers/:id/disconnect", async (request) => {
+    await disconnectFromServer(request.params.id);
+    return { connected: false };
+  });
+
+  // ── Logs ──────────────────────────────────────────────
+
+  // Get server logs
+  app.get<{ Params: { id: string } }>("/api/servers/:id/logs", async (request) => {
+    const logs = mcpManager.getLogs(request.params.id);
+    return { logs };
+  });
 }
