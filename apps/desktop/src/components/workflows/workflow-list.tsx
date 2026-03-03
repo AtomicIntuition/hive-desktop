@@ -1,8 +1,12 @@
 import { useWorkflows } from "@/hooks/use-workflows";
 import { WorkflowCard } from "./workflow-card";
 
-export function WorkflowList() {
-  const { workflows, loading } = useWorkflows();
+interface WorkflowListProps {
+  onSelect?: (id: string) => void;
+}
+
+export function WorkflowList({ onSelect }: WorkflowListProps) {
+  const { workflows, loading, refresh } = useWorkflows();
 
   if (loading) {
     return (
@@ -17,7 +21,7 @@ export function WorkflowList() {
       <div className="rounded-xl border border-dashed border-white/[0.08] p-12 text-center">
         <p className="text-gray-400">No workflows yet</p>
         <p className="mt-1 text-sm text-gray-500">
-          Describe what you want to automate in plain English
+          Create one from a template or describe what you want to automate
         </p>
       </div>
     );
@@ -26,7 +30,7 @@ export function WorkflowList() {
   return (
     <div className="space-y-3">
       {workflows.map((wf) => (
-        <WorkflowCard key={wf.id} workflow={wf} />
+        <WorkflowCard key={wf.id} workflow={wf} onSelect={onSelect} onRefresh={refresh} />
       ))}
     </div>
   );

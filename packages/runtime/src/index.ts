@@ -2,41 +2,43 @@ import { createServer } from "./server.js";
 import { getDb, closeDb } from "./db/index.js";
 import { mcpManager } from "./mcp/manager.js";
 import { disconnectAll } from "./mcp/client.js";
+import { initializeScheduler, shutdownScheduler } from "./workflow/scheduler.js";
+import { createLogger } from "./logger.js";
 
+const log = createLogger("runtime");
 const PORT = parseInt(process.env.HIVE_RUNTIME_PORT ?? "45678", 10);
 
 async function main() {
-  // Initialize database
   getDb();
-  console.log("[runtime] Database initialized");
+  log.info("Database initialized");
 
-  // Start server
   const { app } = await createServer(PORT);
 
   try {
     await app.listen({ port: PORT, host: "127.0.0.1" });
-    console.log(`[runtime] Server listening on http://127.0.0.1:${PORT}`);
+    log.info(`Server listening on http://127.0.0.1:${PORT}`);
   } catch (err) {
-    console.error("[runtime] Failed to start:", err);
+    log.error("Failed to start", err);
     process.exit(1);
   }
 
+  initializeScheduler();
+  log.info("Workflow scheduler initialized");
+
   // Graceful shutdown
   const shutdown = async () => {
-    console.log("[runtime] Shutting down...");
+    log.info("Shutting down...");
 
-    // Disconnect MCP SDK clients
+    shutdownScheduler();
+    log.info("Workflow scheduler stopped");
+
     await disconnectAll();
-    console.log("[runtime] MCP clients disconnected");
+    log.info("MCP clients disconnected");
 
-    // Stop all MCP server processes
     await mcpManager.shutdownAll();
-    console.log("[runtime] MCP servers stopped");
+    log.info("MCP servers stopped");
 
-    // Close HTTP server
     await app.close();
-
-    // Close database
     closeDb();
 
     process.exit(0);
@@ -44,6 +46,16 @@ async function main() {
 
   process.on("SIGINT", shutdown);
   process.on("SIGTERM", shutdown);
+
+  // Catch unhandled rejections
+  process.on("unhandledRejection", (reason) => {
+    log.error("Unhandled rejection", reason);
+  });
+
+  process.on("uncaughtException", (err) => {
+    log.error("Uncaught exception", err);
+    shutdown();
+  });
 }
 
 main();

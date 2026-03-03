@@ -41,6 +41,21 @@
       "icons/128x128@2x.png",
       "icons/icon.icns",
       "icons/icon.ico"
-    ]
+    ],
+    "category": "DeveloperTool",
+    "shortDescription": "Local AI Agent Workflow Runtime",
+    "longDescription": "Hive Desktop is a local-first AI agent workflow runtime. Manage MCP servers, create automations with natural language, and run persistent workflows — all on your machine. Powered by Hive Market.",
+    "copyright": "Copyright 2026 Hive",
+    "macOS": {
+      "minimumSystemVersion": "10.15"
+    }
+  },
+  "plugins": {
+    "updater": {
+      "endpoints": [
+        "https://releases.hive.ai/desktop/{{target}}/{{arch}}/{{current_version}}"
+      ],
+      "pubkey": ""
+    }
   }
 }

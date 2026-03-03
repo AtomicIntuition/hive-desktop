@@ -2,12 +2,14 @@ import { useEffect, useRef, useCallback } from "react";
 import { WS_URL } from "@/lib/constants";
 import { useAppStore } from "@/stores/app-store";
 import { useServerStore } from "@/stores/server-store";
+import { useWorkflowStore } from "@/stores/workflow-store";
 import type { ServerEvent } from "@hive-desktop/shared";
 
 export function useWebSocket() {
   const wsRef = useRef<WebSocket | null>(null);
   const runtimeConnected = useAppStore((s) => s.runtimeConnected);
   const updateServerStatus = useServerStore((s) => s.updateServerStatus);
+  const updateWorkflowStatus = useWorkflowStore((s) => s.updateWorkflowStatus);
 
   const handleMessage = useCallback((event: MessageEvent) => {
     try {
@@ -16,12 +18,16 @@ export function useWebSocket() {
         case "server:status":
           updateServerStatus(msg.data.id, msg.data.status);
           break;
-        case "server:log":
-          // Logs are polled via REST — this is for real-time push if needed later
+        case "workflow:status":
+          updateWorkflowStatus(msg.data.id, msg.data.status);
           break;
+        case "server:log":
         case "server:installed":
         case "server:removed":
-          // Trigger a full refresh via the hook
+        case "workflow:run:start":
+        case "workflow:run:step":
+        case "workflow:run:complete":
+          // These events can trigger UI updates via polling or dedicated handlers
           break;
         case "runtime:ready":
           console.log("[ws] Runtime ready on port", msg.data.port);
@@ -32,7 +38,7 @@ export function useWebSocket() {
     } catch {
       // Ignore malformed messages
     }
-  }, [updateServerStatus]);
+  }, [updateServerStatus, updateWorkflowStatus]);
 
   useEffect(() => {
     if (!runtimeConnected) return;
