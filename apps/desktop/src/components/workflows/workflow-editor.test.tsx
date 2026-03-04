@@ -147,12 +147,12 @@ describe("WorkflowEditor", () => {
     });
   });
 
-  it("shows AI Audit button", async () => {
+  it("shows Audit button", async () => {
     mockGetWorkflow.mockResolvedValue(testWorkflow);
     render(<WorkflowEditor workflowId="wf-1" onBack={onBack} />);
 
     await waitFor(() => {
-      expect(screen.getByText("AI Audit")).toBeDefined();
+      expect(screen.getByText("Audit")).toBeDefined();
     });
   });
 

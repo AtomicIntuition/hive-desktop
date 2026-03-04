@@ -49,11 +49,12 @@ export async function workflowRoutes(app: FastifyInstance): Promise<void> {
     "/api/workflows/:id",
     async (request, reply) => {
       const db = getDb();
+      const allowedFields = ["name", "description", "status", "trigger", "steps"];
       const updates: string[] = ["updated_at = datetime('now')"];
       const values: Array<string | number | null> = [];
 
       for (const [key, value] of Object.entries(request.body)) {
-        if (value !== undefined) {
+        if (value !== undefined && allowedFields.includes(key)) {
           updates.push(`${key} = ?`);
           values.push(value);
         }

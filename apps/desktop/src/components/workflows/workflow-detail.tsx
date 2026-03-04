@@ -193,13 +193,13 @@ export function WorkflowDetail({ workflowId, onBack }: WorkflowDetailProps) {
 
       {/* Description */}
       {workflow.description && (
-        <div className="mb-6 rounded-xl border border-white/[0.06] bg-gray-900/50 p-5">
+        <div className="mb-6 rounded-xl border border-white/[0.06] bg-gray-900/60 backdrop-blur-sm p-5">
           <p className="text-sm text-gray-300">{workflow.description}</p>
         </div>
       )}
 
       {/* Tabs */}
-      <div className="mb-4 flex gap-1 rounded-lg bg-gray-900/50 p-1 border border-white/[0.06] w-fit">
+      <div className="mb-4 flex gap-1 rounded-lg bg-gray-900/60 backdrop-blur-sm p-1 border border-white/[0.06] w-fit">
         <button
           onClick={() => setTab("steps")}
           className={cn(
@@ -248,7 +248,7 @@ function StepList({ steps }: { steps: WorkflowStep[] }) {
         return (
           <div
             key={step.id}
-            className="flex items-center gap-3 rounded-xl border border-white/[0.06] bg-gray-900/50 p-4"
+            className="flex items-center gap-3 rounded-xl border border-white/[0.06] bg-gray-900/60 backdrop-blur-sm p-4"
           >
             <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gray-800 text-xs font-mono text-gray-400">
               {i + 1}
@@ -297,7 +297,7 @@ function RunHistory({ runs }: { runs: WorkflowRun[] }) {
       {runs.map((run) => (
         <div
           key={run.id}
-          className="flex items-center gap-4 rounded-xl border border-white/[0.06] bg-gray-900/50 p-4"
+          className="flex items-center gap-4 rounded-xl border border-white/[0.06] bg-gray-900/60 backdrop-blur-sm p-4"
         >
           {statusIcons[run.status]}
           <div className="flex-1">

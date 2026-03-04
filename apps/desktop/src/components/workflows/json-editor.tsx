@@ -86,7 +86,7 @@ export function JsonEditorTab() {
           }}
           spellCheck={false}
           className={cn(
-            "w-full rounded-xl border bg-gray-900/50 p-4 font-mono text-sm text-gray-200 outline-none resize-none",
+            "w-full rounded-xl border bg-gray-900/60 backdrop-blur-sm p-4 font-mono text-sm text-gray-200 outline-none resize-none",
             parseError ? "border-red-500/50" : "border-white/[0.06] focus:border-violet-500/50"
           )}
           style={{ minHeight: "500px", tabSize: 2 }}
@@ -124,7 +124,7 @@ export function JsonEditorTab() {
         </div>
       </div>
 
-      <div className="rounded-xl border border-white/[0.06] bg-gray-900/50 p-4 overflow-auto" style={{ maxHeight: "600px" }}>
+      <div className="rounded-xl border border-white/[0.06] bg-gray-900/60 backdrop-blur-sm p-4 overflow-auto" style={{ maxHeight: "600px" }}>
         <pre className="font-mono text-sm leading-relaxed">
           <SyntaxHighlightedJson json={jsonString} />
         </pre>

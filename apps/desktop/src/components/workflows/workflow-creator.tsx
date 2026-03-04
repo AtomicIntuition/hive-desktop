@@ -104,7 +104,7 @@ export function WorkflowCreator({ onCreated }: WorkflowCreatorProps) {
   };
 
   return (
-    <div className="rounded-xl border border-white/[0.06] bg-gray-900/50 p-6">
+    <div className="rounded-xl border border-white/[0.06] bg-gray-900/60 backdrop-blur-sm p-6">
       <div className="mb-4 flex items-center gap-2">
         <Sparkles className="h-5 w-5 text-violet-400" />
         <h3 className="font-semibold text-gray-100">Create a Workflow</h3>
@@ -325,11 +325,30 @@ function WorkflowPlanPreview({ plan, onConfirm, onDiscard, confirming }: PlanPre
           </div>
         </div>
         <div className="mt-3 flex items-center gap-3 text-xs text-gray-500">
+          {plan.qualityScore > 0 && (
+            <span
+              className={cn(
+                "rounded-full px-2 py-0.5 font-medium",
+                plan.qualityScore >= 80
+                  ? "bg-emerald-500/10 text-emerald-400"
+                  : plan.qualityScore >= 50
+                  ? "bg-amber-500/10 text-amber-400"
+                  : "bg-red-500/10 text-red-400"
+              )}
+            >
+              Score: {plan.qualityScore}
+            </span>
+          )}
           <span className="rounded-full bg-violet-500/10 px-2 py-0.5 text-violet-300">
             {triggerLabel}
           </span>
           <span>{(plan.steps as unknown[]).length} steps</span>
           <span>{plan.requiredServers.length} server(s)</span>
+          {plan.iterationsUsed > 0 && (
+            <span className="text-gray-600" title="Number of self-validation iterations">
+              {plan.iterationsUsed} fix pass{plan.iterationsUsed > 1 ? "es" : ""}
+            </span>
+          )}
         </div>
       </div>
 
@@ -344,7 +363,7 @@ function WorkflowPlanPreview({ plan, onConfirm, onDiscard, confirming }: PlanPre
             {missingServers.map((server) => (
               <div
                 key={server.slug}
-                className="flex items-center justify-between rounded-lg bg-gray-900/50 px-3 py-2"
+                className="flex items-center justify-between rounded-lg bg-gray-900/60 backdrop-blur-sm px-3 py-2"
               >
                 <span className="text-sm font-mono text-gray-300">{server.slug}</span>
                 <button
@@ -376,7 +395,7 @@ function WorkflowPlanPreview({ plan, onConfirm, onDiscard, confirming }: PlanPre
             {allRequiredEnvVars.map((v) => (
               <div
                 key={`${v.server}-${v.name}`}
-                className="flex items-center gap-2 rounded-lg bg-gray-900/50 px-3 py-2"
+                className="flex items-center gap-2 rounded-lg bg-gray-900/60 backdrop-blur-sm px-3 py-2"
               >
                 <code className="rounded bg-gray-800/50 px-1.5 py-0.5 font-mono text-xs text-amber-300">
                   {v.name}

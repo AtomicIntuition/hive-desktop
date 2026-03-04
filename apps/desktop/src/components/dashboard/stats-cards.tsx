@@ -11,7 +11,7 @@ interface StatCardProps {
 
 function StatCard({ label, value, icon: Icon, color, bgColor }: StatCardProps) {
   return (
-    <div className="rounded-xl border border-white/[0.06] bg-gray-900/50 p-5">
+    <div className="rounded-xl border border-white/[0.06] bg-gray-900/60 backdrop-blur-sm p-5">
       <div className="flex items-center justify-between">
         <div>
           <p className="text-sm text-gray-400">{label}</p>

@@ -71,7 +71,7 @@ export function ServerBrowser({ onInstalled, installedSlugs = new Set() }: Serve
             placeholder="Search MCP servers on Hive Market..."
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            className="w-full rounded-lg border border-white/[0.06] bg-gray-900/50 py-2.5 pl-10 pr-4 text-sm text-gray-200 placeholder-gray-500 outline-none focus:border-violet-500/50 focus:ring-1 focus:ring-violet-500/25"
+            className="w-full rounded-lg border border-white/[0.06] bg-gray-900/60 backdrop-blur-sm py-2.5 pl-10 pr-4 text-sm text-gray-200 placeholder-gray-500 outline-none focus:border-violet-500/50 focus:ring-1 focus:ring-violet-500/25"
           />
         </div>
       </div>
@@ -159,7 +159,7 @@ function MarketToolCard({
   const isInstalled = installed || justInstalled;
 
   return (
-    <div className="group rounded-xl border border-white/[0.06] bg-gray-900/50 p-4 transition-colors hover:border-white/[0.1]">
+    <div className="group rounded-xl border border-white/[0.06] bg-gray-900/60 backdrop-blur-sm p-4 transition-colors hover:border-white/[0.1]">
       <div className="flex items-start justify-between gap-3">
         <div className="flex-1 min-w-0">
           <h3 className="font-medium text-gray-100 truncate">{tool.name}</h3>

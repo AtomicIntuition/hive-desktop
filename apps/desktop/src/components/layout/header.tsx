@@ -19,7 +19,7 @@ export function Header() {
   return (
     <header
       data-tauri-drag-region
-      className="flex h-14 items-center justify-between border-b border-white/[0.06] px-6"
+      className="flex h-14 items-center justify-between border-b border-white/[0.06] bg-gray-950/80 backdrop-blur-sm px-6"
     >
       <h1 className="text-lg font-semibold text-gray-50">{title}</h1>
       <div className="flex items-center gap-3">

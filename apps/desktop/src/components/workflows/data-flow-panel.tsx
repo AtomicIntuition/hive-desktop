@@ -2,13 +2,7 @@ import { useMemo, useState } from "react";
 import { cn } from "@/lib/utils";
 import { useWorkflowEditorStore } from "@/stores/workflow-editor-store";
 import { ChevronDown, ChevronRight, ArrowRight, Variable } from "lucide-react";
-import type { WorkflowStep } from "@hive-desktop/shared";
-
-interface VarInfo {
-  name: string;
-  producedBy: { stepIndex: number; stepName: string };
-  consumedBy: Array<{ stepIndex: number; stepName: string; field: string }>;
-}
+import { analyzeDataFlow } from "./analyze-flow";
 
 export function DataFlowPanel() {
   const steps = useWorkflowEditorStore((s) => s.steps);
@@ -19,7 +13,7 @@ export function DataFlowPanel() {
   if (steps.length === 0) return null;
 
   return (
-    <div className="rounded-xl border border-white/[0.06] bg-gray-900/50">
+    <div className="rounded-xl border border-white/[0.06] bg-gray-900/60 backdrop-blur-sm">
       <button
         onClick={() => setCollapsed(!collapsed)}
         className="flex w-full items-center gap-2 px-4 py-3 text-left"
@@ -89,71 +83,4 @@ export function DataFlowPanel() {
       )}
     </div>
   );
-}
-
-// ── Analysis ──────────────────────────────────────────────
-
-function analyzeDataFlow(steps: WorkflowStep[]): VarInfo[] {
-  const vars = new Map<string, VarInfo>();
-
-  // Find producers (steps with outputVar)
-  steps.forEach((step, i) => {
-    if (step.outputVar) {
-      vars.set(step.outputVar, {
-        name: step.outputVar,
-        producedBy: { stepIndex: i, stepName: step.name },
-        consumedBy: [],
-      });
-    }
-  });
-
-  // Find consumers (steps that reference {{varName}})
-  steps.forEach((step, i) => {
-    const refs = findVarReferences(step);
-    for (const ref of refs) {
-      const varInfo = vars.get(ref.varName);
-      if (varInfo) {
-        varInfo.consumedBy.push({
-          stepIndex: i,
-          stepName: step.name,
-          field: ref.field,
-        });
-      }
-    }
-  });
-
-  return Array.from(vars.values());
-}
-
-function findVarReferences(step: WorkflowStep): Array<{ varName: string; field: string }> {
-  const refs: Array<{ varName: string; field: string }> = [];
-  const varPattern = /\{\{([^}]+)\}\}/g;
-
-  // Check arguments
-  if (step.arguments) {
-    const argsStr = JSON.stringify(step.arguments);
-    let match: RegExpExecArray | null;
-    while ((match = varPattern.exec(argsStr)) !== null) {
-      const varRef = match[1].trim();
-      const rootVar = varRef.split(".")[0];
-      refs.push({ varName: rootVar, field: "arguments" });
-    }
-  }
-
-  // Check condition/expression
-  if (step.condition) {
-    let match: RegExpExecArray | null;
-    const condPattern = /\{\{([^}]+)\}\}/g;
-    while ((match = condPattern.exec(step.condition)) !== null) {
-      const varRef = match[1].trim();
-      const rootVar = varRef.split(".")[0];
-      refs.push({ varName: rootVar, field: "condition" });
-    }
-
-    // Also check for bare variable names (used in JS expressions)
-    // This catches cases like `payments.length > 0` where payments is an outputVar
-    // We check if any known variable name appears in the condition
-  }
-
-  return refs;
 }

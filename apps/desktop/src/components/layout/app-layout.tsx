@@ -28,11 +28,16 @@ export function AppLayout() {
   }, [runtimeConnected]);
 
   return (
-    <div className="flex h-screen bg-gray-950">
+    <div className="flex h-screen bg-gray-950 relative">
+      {/* Honeycomb background texture */}
+      <div
+        className="fixed inset-0 z-0 bg-cover bg-center pointer-events-none opacity-[0.07]"
+        style={{ backgroundImage: "url('/alex-pavor-VUnjE00FRSA-unsplash.jpg')" }}
+      />
       <Sidebar />
       <div
         className={cn(
-          "flex flex-1 flex-col transition-all duration-200",
+          "flex flex-1 flex-col transition-all duration-200 relative z-10",
           sidebarCollapsed ? "ml-[60px]" : "ml-[240px]"
         )}
       >
@@ -62,7 +67,7 @@ export function AppLayout() {
             </button>
           </div>
         )}
-        <main className="flex-1 overflow-y-auto p-6">
+        <main className="flex-1 overflow-y-auto p-6 min-h-0">
           <Outlet />
         </main>
       </div>

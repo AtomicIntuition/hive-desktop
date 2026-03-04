@@ -66,7 +66,7 @@ export function VaultList() {
           {credentials.map((cred) => (
             <div
               key={cred.id}
-              className="flex items-center justify-between rounded-xl border border-white/[0.06] bg-gray-900/50 p-4"
+              className="flex items-center justify-between rounded-xl border border-white/[0.06] bg-gray-900/60 backdrop-blur-sm p-4"
             >
               <div className="flex items-center gap-3">
                 <KeyRound className="h-4 w-4 text-amber-400" />
@@ -105,7 +105,7 @@ function CredentialForm({ onSave }: { onSave: () => void }) {
   };
 
   return (
-    <form onSubmit={handleSubmit} className="mb-6 rounded-xl border border-white/[0.06] bg-gray-900/50 p-4">
+    <form onSubmit={handleSubmit} className="mb-6 rounded-xl border border-white/[0.06] bg-gray-900/60 backdrop-blur-sm p-4">
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <div>
           <label className="mb-1 block text-xs text-gray-400">Name</label>

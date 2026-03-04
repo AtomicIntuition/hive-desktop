@@ -76,7 +76,7 @@ export function RunsTab() {
         <button
           key={run.id}
           onClick={() => setSelectedRunId(run.id)}
-          className="flex w-full items-center gap-4 rounded-xl border border-white/[0.06] bg-gray-900/50 p-4 text-left transition-colors hover:border-violet-500/20"
+          className="flex w-full items-center gap-4 rounded-xl border border-white/[0.06] bg-gray-900/60 backdrop-blur-sm p-4 text-left transition-colors hover:border-violet-500/20"
         >
           {statusIcons[run.status]}
           <div className="flex-1">
@@ -228,7 +228,7 @@ function RunDetailPanel({ runId, onBack }: { runId: string; onBack: () => void }
               {expanded && (
                 <div className="border-t border-white/[0.04] px-3 py-2">
                   {stepResult !== undefined ? (
-                    <pre className="overflow-auto rounded bg-gray-900/50 p-2 font-mono text-xs text-gray-400" style={{ maxHeight: "200px" }}>
+                    <pre className="overflow-auto rounded bg-gray-900/60 backdrop-blur-sm p-2 font-mono text-xs text-gray-400" style={{ maxHeight: "200px" }}>
                       {typeof stepResult === "string" ? stepResult : JSON.stringify(stepResult, null, 2)}
                     </pre>
                   ) : (

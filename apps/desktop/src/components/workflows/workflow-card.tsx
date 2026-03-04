@@ -92,7 +92,7 @@ export function WorkflowCard({ workflow, onSelect, onRefresh }: WorkflowCardProp
   return (
     <div
       onClick={() => onSelect?.(workflow.id)}
-      className="rounded-xl border border-white/[0.06] bg-gray-900/50 p-4 transition-colors hover:border-white/[0.1] cursor-pointer"
+      className="rounded-xl border border-white/[0.06] bg-gray-900/60 backdrop-blur-sm p-4 transition-colors hover:border-white/[0.1] cursor-pointer"
     >
       <div className="flex items-start justify-between">
         <div className="flex items-center gap-3">

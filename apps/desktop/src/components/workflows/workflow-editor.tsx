@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { cn } from "@/lib/utils";
 import { useWorkflowEditorStore } from "@/stores/workflow-editor-store";
 import { useWebSocketEditor } from "@/hooks/use-websocket-editor";
@@ -11,9 +11,10 @@ import {
   getMarketTool,
   modifyWorkflow,
 } from "@/lib/runtime-client";
-import type { Workflow, WorkflowTrigger, ServerEnvVar } from "@hive-desktop/shared";
+import type { Workflow, WorkflowTrigger } from "@hive-desktop/shared";
 import { StepEditorPanel } from "./step-editor";
 import { DataFlowPanel } from "./data-flow-panel";
+import { FlowDiagram } from "./flow-diagram";
 import { JsonEditorTab } from "./json-editor";
 import { RunsTab, LiveRunOverlay } from "./run-viewer";
 import { AuditModal } from "./audit-modal";
@@ -33,6 +34,8 @@ import {
   Sparkles,
   Send,
   Dices,
+  ChevronDown,
+  ChevronRight,
 } from "lucide-react";
 
 interface WorkflowEditorProps {
@@ -56,6 +59,7 @@ export function WorkflowEditor({ workflowId, onBack }: WorkflowEditorProps) {
     activeRun,
     auditing,
     auditResult,
+    expandedSteps,
     load,
     setName,
     setDescription,
@@ -69,6 +73,7 @@ export function WorkflowEditor({ workflowId, onBack }: WorkflowEditorProps) {
     reset,
     undo,
     redo,
+    toggleStepExpanded,
   } = store;
 
   const [loading, setLoading] = useState(true);
@@ -81,6 +86,7 @@ export function WorkflowEditor({ workflowId, onBack }: WorkflowEditorProps) {
   const [aiModifying, setAiModifying] = useState(false);
   const [aiChanges, setAiChanges] = useState<string[] | null>(null);
   const [reimagining, setReimagining] = useState(false);
+  const [configCollapsed, setConfigCollapsed] = useState(false);
 
   const heldSteps = useWorkflowEditorStore((s) => s.heldSteps);
   const clearHeld = useWorkflowEditorStore((s) => s.clearHeld);
@@ -291,6 +297,12 @@ export function WorkflowEditor({ workflowId, onBack }: WorkflowEditorProps) {
     }
   }, [dirty, onBack]);
 
+  // Flow diagram step click
+  const handleDiagramStepClick = useCallback((stepId: string) => {
+    setActiveTab("editor");
+    toggleStepExpanded(stepId);
+  }, [setActiveTab, toggleStepExpanded]);
+
   const canUndo = historyIndex > 0;
   const canRedo = historyIndex < history.length - 1;
 
@@ -320,12 +332,12 @@ export function WorkflowEditor({ workflowId, onBack }: WorkflowEditorProps) {
   const triggerLabel = formatTriggerLabel(trigger);
 
   return (
-    <div>
-      {/* Header */}
-      <div className="mb-4 flex items-center gap-2 sm:gap-3">
+    <div className="flex flex-col h-full">
+      {/* Compact Header */}
+      <div className="mb-3 flex items-center gap-2 sm:gap-3 shrink-0">
         <button
           onClick={handleBack}
-          className="rounded-lg p-2 text-gray-400 hover:bg-white/[0.04] hover:text-gray-200 shrink-0"
+          className="rounded-lg p-1.5 text-gray-400 hover:bg-white/[0.04] hover:text-gray-200 shrink-0"
         >
           <ArrowLeft className="h-5 w-5" />
         </button>
@@ -336,9 +348,9 @@ export function WorkflowEditor({ workflowId, onBack }: WorkflowEditorProps) {
             type="text"
             value={name}
             onChange={(e) => setName(e.target.value)}
-            className="w-full bg-transparent text-lg sm:text-xl font-semibold text-gray-50 outline-none border-b border-transparent hover:border-white/[0.06] focus:border-violet-500/50 pb-0.5"
+            className="w-full bg-transparent text-lg font-semibold text-gray-50 outline-none border-b border-transparent hover:border-white/[0.06] focus:border-violet-500/50 pb-0.5"
           />
-          <div className="mt-1 flex items-center gap-2 sm:gap-3 text-xs flex-wrap">
+          <div className="mt-0.5 flex items-center gap-2 sm:gap-3 text-xs flex-wrap">
             <span className={cn("font-medium", statusColor)}>
               {original.status.charAt(0).toUpperCase() + original.status.slice(1)}
             </span>
@@ -351,61 +363,81 @@ export function WorkflowEditor({ workflowId, onBack }: WorkflowEditorProps) {
         </div>
       </div>
 
-      {/* Description */}
-      <div className="mb-4">
-        <textarea
-          value={description}
-          onChange={(e) => setDescription(e.target.value)}
-          placeholder="Add a description..."
-          rows={1}
-          className="w-full resize-none bg-transparent text-sm text-gray-400 outline-none placeholder-gray-600 border-b border-transparent hover:border-white/[0.06] focus:border-violet-500/50"
-        />
+      {/* Collapsible config section (description, env vars, trigger) */}
+      <div className="shrink-0 mb-2">
+        <button
+          onClick={() => setConfigCollapsed(!configCollapsed)}
+          className="flex items-center gap-1.5 text-xs text-gray-500 hover:text-gray-300 mb-2"
+        >
+          {configCollapsed ? (
+            <ChevronRight className="h-3 w-3" />
+          ) : (
+            <ChevronDown className="h-3 w-3" />
+          )}
+          Configuration
+          {envVars.length > 0 && (
+            <span className="text-amber-400">({envVars.length} env vars)</span>
+          )}
+        </button>
+
+        {!configCollapsed && (
+          <div className="space-y-3">
+            {/* Description */}
+            <textarea
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              placeholder="Add a description..."
+              rows={1}
+              className="w-full resize-none bg-transparent text-sm text-gray-400 outline-none placeholder-gray-600 border-b border-transparent hover:border-white/[0.06] focus:border-violet-500/50"
+            />
+
+            {/* Required env vars banner */}
+            {envVars.length > 0 && (
+              <div className="rounded-lg border border-amber-500/20 bg-amber-500/[0.03] px-3 py-2.5">
+                <div className="flex items-center gap-2 mb-1.5">
+                  <Key className="h-3.5 w-3.5 text-amber-400" />
+                  <span className="text-xs font-medium text-amber-300">Required API Keys</span>
+                  <span className="text-[10px] text-gray-500">Add in Vault before running</span>
+                </div>
+                <div className="space-y-1">
+                  {envVars.map((v) => (
+                    <div key={`${v.server}-${v.name}`} className="flex items-center gap-2">
+                      <code className="rounded bg-gray-800/50 px-1.5 py-0.5 font-mono text-[11px] text-amber-300">{v.name}</code>
+                      <span className="flex-1 text-[11px] text-gray-500 truncate">{v.description}</span>
+                      <span className="text-[10px] text-gray-600 font-mono shrink-0">{v.server}</span>
+                      {v.required && (
+                        <span className="rounded-full bg-red-500/10 px-1.5 py-0.5 text-[10px] text-red-400 shrink-0">required</span>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Trigger editor */}
+            <TriggerEditor trigger={trigger} onChange={setTrigger} />
+          </div>
+        )}
       </div>
 
-      {/* Required env vars banner */}
-      {envVars.length > 0 && (
-        <div className="mb-4 rounded-xl border border-amber-500/20 bg-amber-500/[0.03] p-4">
-          <div className="flex items-center gap-2 mb-2">
-            <Key className="h-4 w-4 text-amber-400" />
-            <span className="text-sm font-medium text-amber-300">Required API Keys</span>
-            <span className="text-xs text-gray-500">Add these in Vault before running</span>
-          </div>
-          <div className="space-y-1.5">
-            {envVars.map((v) => (
-              <div key={`${v.server}-${v.name}`} className="flex items-center gap-2">
-                <code className="rounded bg-gray-800/50 px-1.5 py-0.5 font-mono text-xs text-amber-300">{v.name}</code>
-                <span className="flex-1 text-xs text-gray-500 truncate">{v.description}</span>
-                <span className="text-[10px] text-gray-600 font-mono shrink-0">{v.server}</span>
-                {v.required && (
-                  <span className="rounded-full bg-red-500/10 px-1.5 py-0.5 text-[10px] text-red-400 shrink-0">required</span>
-                )}
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Trigger editor */}
-      <TriggerEditor trigger={trigger} onChange={setTrigger} />
-
-      {/* Toolbar */}
-      <div className="mb-4 flex items-center gap-1 flex-wrap overflow-x-auto -mx-1 px-1">
+      {/* Compact Toolbar */}
+      <div className="mb-3 flex items-center gap-1 flex-wrap shrink-0">
         <button
           onClick={handleSave}
           disabled={!dirty || saving}
           className={cn(
-            "flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
+            "flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-sm font-medium transition-colors",
             dirty && !saving
               ? "bg-violet-600 text-white hover:bg-violet-700"
               : "text-gray-500 bg-gray-800/50"
           )}
         >
           {saving ? (
-            <Loader2 className="h-4 w-4 animate-spin" />
+            <Loader2 className="h-3.5 w-3.5 animate-spin" />
           ) : saveSuccess ? (
-            <Check className="h-4 w-4 text-emerald-400" />
+            <Check className="h-3.5 w-3.5 text-emerald-400" />
           ) : (
-            <Save className="h-4 w-4" />
+            <Save className="h-3.5 w-3.5" />
           )}
           {saveSuccess ? "Saved" : "Save"}
         </button>
@@ -413,31 +445,31 @@ export function WorkflowEditor({ workflowId, onBack }: WorkflowEditorProps) {
         <button
           onClick={() => undo()}
           disabled={!canUndo}
-          className="rounded-lg p-2 text-gray-500 hover:text-gray-300 disabled:opacity-20"
+          className="rounded-lg p-1.5 text-gray-500 hover:text-gray-300 disabled:opacity-20"
           title="Undo (Cmd+Z)"
         >
-          <Undo2 className="h-4 w-4" />
+          <Undo2 className="h-3.5 w-3.5" />
         </button>
         <button
           onClick={() => redo()}
           disabled={!canRedo}
-          className="rounded-lg p-2 text-gray-500 hover:text-gray-300 disabled:opacity-20"
+          className="rounded-lg p-1.5 text-gray-500 hover:text-gray-300 disabled:opacity-20"
           title="Redo (Cmd+Shift+Z)"
         >
-          <Redo2 className="h-4 w-4" />
+          <Redo2 className="h-3.5 w-3.5" />
         </button>
 
-        <div className="w-px h-5 bg-white/[0.06] mx-1" />
+        <div className="w-px h-4 bg-white/[0.06] mx-0.5" />
 
         <button
           onClick={handleRun}
           disabled={activeRun?.status === "running"}
-          className="flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-2 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-50"
+          className="flex items-center gap-1.5 rounded-lg bg-emerald-600 px-2.5 py-1.5 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-50"
         >
           {activeRun?.status === "running" ? (
-            <Loader2 className="h-4 w-4 animate-spin" />
+            <Loader2 className="h-3.5 w-3.5 animate-spin" />
           ) : (
-            <Play className="h-4 w-4" />
+            <Play className="h-3.5 w-3.5" />
           )}
           Run
         </button>
@@ -445,19 +477,19 @@ export function WorkflowEditor({ workflowId, onBack }: WorkflowEditorProps) {
         <button
           onClick={handleAudit}
           disabled={auditing}
-          className="flex items-center gap-1.5 rounded-lg border border-white/[0.06] px-3 py-2 text-sm font-medium text-gray-300 hover:border-violet-500/30 hover:text-violet-300 disabled:opacity-50"
+          className="flex items-center gap-1.5 rounded-lg border border-white/[0.06] px-2.5 py-1.5 text-sm font-medium text-gray-300 hover:border-violet-500/30 hover:text-violet-300 disabled:opacity-50"
         >
-          {auditing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Shield className="h-4 w-4" />}
-          AI Audit
+          {auditing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Shield className="h-3.5 w-3.5" />}
+          Audit
         </button>
 
         <button
           onClick={handleReimagine}
           disabled={reimagining || steps.length === 0}
-          className="relative flex items-center gap-1.5 rounded-lg border border-white/[0.06] px-3 py-2 text-sm font-medium text-gray-300 hover:border-amber-500/30 hover:text-amber-300 disabled:opacity-50"
+          className="relative flex items-center gap-1.5 rounded-lg border border-white/[0.06] px-2.5 py-1.5 text-sm font-medium text-gray-300 hover:border-amber-500/30 hover:text-amber-300 disabled:opacity-50"
           title={heldSteps.size > 0 ? `Reimagine (${heldSteps.size} held)` : "Reimagine workflow"}
         >
-          {reimagining ? <Loader2 className="h-4 w-4 animate-spin" /> : <Dices className="h-4 w-4" />}
+          {reimagining ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Dices className="h-3.5 w-3.5" />}
           Dice
           {heldSteps.size > 0 && (
             <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-amber-500/20 px-1 text-[10px] font-bold text-amber-400">
@@ -466,21 +498,21 @@ export function WorkflowEditor({ workflowId, onBack }: WorkflowEditorProps) {
           )}
         </button>
 
-        <div className="w-px h-5 bg-white/[0.06] mx-1" />
+        <div className="w-px h-4 bg-white/[0.06] mx-0.5" />
 
         <button
           onClick={() => setDeleteConfirmOpen(true)}
-          className="rounded-lg p-2 text-gray-500 hover:text-red-400"
+          className="rounded-lg p-1.5 text-gray-500 hover:text-red-400"
           title="Delete workflow"
         >
-          <Trash2 className="h-4 w-4" />
+          <Trash2 className="h-3.5 w-3.5" />
         </button>
       </div>
 
       {/* AI Modify Prompt */}
-      <div className="mb-4 rounded-xl border border-white/[0.06] bg-gray-900/50 overflow-hidden">
-        <div className="flex items-center gap-2 px-3 py-2">
-          <Sparkles className="h-4 w-4 text-violet-400 shrink-0" />
+      <div className="mb-3 rounded-lg border border-white/[0.06] bg-gray-900/60 backdrop-blur-sm overflow-hidden shrink-0">
+        <div className="flex items-center gap-2 px-3 py-1.5">
+          <Sparkles className="h-3.5 w-3.5 text-violet-400 shrink-0" />
           <input
             type="text"
             value={aiPrompt}
@@ -493,21 +525,21 @@ export function WorkflowEditor({ workflowId, onBack }: WorkflowEditorProps) {
           <button
             onClick={handleAiModify}
             disabled={!aiPrompt.trim() || aiModifying}
-            className="rounded-lg p-1.5 text-gray-500 hover:text-violet-300 disabled:opacity-30 transition-colors"
+            className="rounded-lg p-1 text-gray-500 hover:text-violet-300 disabled:opacity-30 transition-colors"
           >
-            {aiModifying ? <Loader2 className="h-4 w-4 animate-spin text-violet-400" /> : <Send className="h-4 w-4" />}
+            {aiModifying ? <Loader2 className="h-3.5 w-3.5 animate-spin text-violet-400" /> : <Send className="h-3.5 w-3.5" />}
           </button>
         </div>
         {aiChanges && aiChanges.length > 0 && (
-          <div className="border-t border-white/[0.04] px-3 py-2 bg-violet-500/[0.03]">
-            <div className="flex items-center gap-1.5 mb-1">
-              <Check className="h-3.5 w-3.5 text-emerald-400" />
-              <span className="text-xs font-medium text-emerald-400">Changes applied</span>
-              <button onClick={() => setAiChanges(null)} className="ml-auto text-gray-600 hover:text-gray-400 text-xs">dismiss</button>
+          <div className="border-t border-white/[0.04] px-3 py-1.5 bg-violet-500/[0.03]">
+            <div className="flex items-center gap-1.5 mb-0.5">
+              <Check className="h-3 w-3 text-emerald-400" />
+              <span className="text-[11px] font-medium text-emerald-400">Changes applied</span>
+              <button onClick={() => setAiChanges(null)} className="ml-auto text-gray-600 hover:text-gray-400 text-[11px]">dismiss</button>
             </div>
             <ul className="space-y-0.5">
               {aiChanges.map((change, i) => (
-                <li key={i} className="text-xs text-gray-400 pl-5">{change}</li>
+                <li key={i} className="text-[11px] text-gray-400 pl-4">{change}</li>
               ))}
             </ul>
           </div>
@@ -516,11 +548,11 @@ export function WorkflowEditor({ workflowId, onBack }: WorkflowEditorProps) {
 
       {/* Error */}
       {error && (
-        <div className="mb-4 rounded-lg border border-red-500/20 bg-red-500/[0.06] px-4 py-3">
+        <div className="mb-3 rounded-lg border border-red-500/20 bg-red-500/[0.06] px-3 py-2 shrink-0">
           <div className="flex items-center gap-2 text-sm text-red-400">
-            <AlertCircle className="h-4 w-4 shrink-0" />
-            <span>{error}</span>
-            <button onClick={() => setError(null)} className="ml-auto text-red-400/50 hover:text-red-400">
+            <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+            <span className="truncate">{error}</span>
+            <button onClick={() => setError(null)} className="ml-auto text-red-400/50 hover:text-red-400 shrink-0">
               Dismiss
             </button>
           </div>
@@ -528,16 +560,16 @@ export function WorkflowEditor({ workflowId, onBack }: WorkflowEditorProps) {
       )}
 
       {/* Live Run Overlay */}
-      {activeRun && <div className="mb-4"><LiveRunOverlay /></div>}
+      {activeRun && <div className="mb-3 shrink-0"><LiveRunOverlay /></div>}
 
       {/* Tab bar */}
-      <div className="mb-4 flex gap-1 rounded-lg bg-gray-900/50 p-1 border border-white/[0.06] w-full sm:w-fit">
+      <div className="mb-3 flex gap-1 rounded-lg bg-gray-900/60 backdrop-blur-sm p-1 border border-white/[0.06] w-full sm:w-fit shrink-0">
         {(["editor", "runs", "json"] as const).map((tab) => (
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
             className={cn(
-              "flex-1 sm:flex-initial rounded-md px-3 sm:px-4 py-2 text-sm font-medium transition-colors capitalize",
+              "flex-1 sm:flex-initial rounded-md px-3 py-1.5 text-sm font-medium transition-colors capitalize",
               activeTab === tab
                 ? "bg-violet-500/15 text-violet-300"
                 : "text-gray-400 hover:text-gray-300"
@@ -550,19 +582,28 @@ export function WorkflowEditor({ workflowId, onBack }: WorkflowEditorProps) {
         ))}
       </div>
 
-      {/* Tab content */}
-      {activeTab === "editor" && (
-        <div className="flex flex-col lg:flex-row gap-4">
-          <div className="flex-1 min-w-0">
-            <StepEditorPanel />
+      {/* Tab content — fills remaining vertical space */}
+      <div className="flex-1 min-h-0 overflow-y-auto">
+        {activeTab === "editor" && (
+          <div className="flex flex-col lg:flex-row gap-4">
+            <div className="flex-1 min-w-0">
+              <StepEditorPanel />
+            </div>
+            <div className="lg:w-[320px] shrink-0 space-y-4">
+              <FlowDiagram
+                steps={steps}
+                activeRun={activeRun}
+                heldSteps={heldSteps}
+                expandedSteps={expandedSteps}
+                onStepClick={handleDiagramStepClick}
+              />
+              <DataFlowPanel />
+            </div>
           </div>
-          <div className="lg:w-[320px] shrink-0">
-            <DataFlowPanel />
-          </div>
-        </div>
-      )}
-      {activeTab === "runs" && <RunsTab />}
-      {activeTab === "json" && <JsonEditorTab />}
+        )}
+        {activeTab === "runs" && <RunsTab />}
+        {activeTab === "json" && <JsonEditorTab />}
+      </div>
 
       {/* Modals */}
       <AuditModal />
@@ -600,9 +641,9 @@ function TriggerEditor({
   onChange: (t: WorkflowTrigger) => void;
 }) {
   return (
-    <div className="mb-4 rounded-xl border border-white/[0.06] bg-gray-900/50 p-3 sm:p-4">
+    <div className="rounded-lg border border-white/[0.06] bg-gray-900/60 backdrop-blur-sm px-3 py-2.5">
       <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
-        <label className="text-xs font-medium text-gray-400 sm:w-20 shrink-0">Trigger</label>
+        <label className="text-xs font-medium text-gray-400 sm:w-16 shrink-0">Trigger</label>
         <select
           value={trigger.type}
           onChange={(e) => {
@@ -625,7 +666,7 @@ function TriggerEditor({
                 break;
             }
           }}
-          className="w-full sm:w-auto rounded-lg border border-white/[0.06] bg-gray-800/50 px-3 py-2 sm:py-1.5 text-sm text-gray-200 outline-none focus:border-violet-500/50"
+          className="w-full sm:w-auto rounded-lg border border-white/[0.06] bg-gray-800/50 px-3 py-1.5 text-sm text-gray-200 outline-none focus:border-violet-500/50"
         >
           <option value="manual">Manual</option>
           <option value="interval">Interval</option>
@@ -643,7 +684,7 @@ function TriggerEditor({
               min={10}
               value={trigger.seconds}
               onChange={(e) => onChange({ ...trigger, seconds: parseInt(e.target.value, 10) || 60 })}
-              className="w-20 rounded-lg border border-white/[0.06] bg-gray-800/50 px-2 py-2 sm:py-1.5 text-sm text-gray-200 outline-none focus:border-violet-500/50"
+              className="w-20 rounded-lg border border-white/[0.06] bg-gray-800/50 px-2 py-1.5 text-sm text-gray-200 outline-none focus:border-violet-500/50"
             />
             <span className="text-xs text-gray-500">seconds</span>
           </div>
@@ -655,7 +696,7 @@ function TriggerEditor({
             value={trigger.cron}
             onChange={(e) => onChange({ ...trigger, cron: e.target.value })}
             placeholder="0 9 * * 1-5"
-            className="w-full sm:flex-1 rounded-lg border border-white/[0.06] bg-gray-800/50 px-3 py-2 sm:py-1.5 font-mono text-sm text-gray-200 outline-none focus:border-violet-500/50 placeholder-gray-600"
+            className="w-full sm:flex-1 rounded-lg border border-white/[0.06] bg-gray-800/50 px-3 py-1.5 font-mono text-sm text-gray-200 outline-none focus:border-violet-500/50 placeholder-gray-600"
           />
         )}
 
@@ -665,7 +706,7 @@ function TriggerEditor({
             value={trigger.path}
             onChange={(e) => onChange({ ...trigger, path: e.target.value })}
             placeholder="/my-webhook"
-            className="w-full sm:flex-1 rounded-lg border border-white/[0.06] bg-gray-800/50 px-3 py-2 sm:py-1.5 font-mono text-sm text-gray-200 outline-none focus:border-violet-500/50 placeholder-gray-600"
+            className="w-full sm:flex-1 rounded-lg border border-white/[0.06] bg-gray-800/50 px-3 py-1.5 font-mono text-sm text-gray-200 outline-none focus:border-violet-500/50 placeholder-gray-600"
           />
         )}
 
@@ -676,14 +717,14 @@ function TriggerEditor({
               value={trigger.path}
               onChange={(e) => onChange({ ...trigger, path: e.target.value })}
               placeholder="/path/to/watch"
-              className="w-full sm:flex-1 rounded-lg border border-white/[0.06] bg-gray-800/50 px-3 py-2 sm:py-1.5 font-mono text-sm text-gray-200 outline-none focus:border-violet-500/50 placeholder-gray-600"
+              className="w-full sm:flex-1 rounded-lg border border-white/[0.06] bg-gray-800/50 px-3 py-1.5 font-mono text-sm text-gray-200 outline-none focus:border-violet-500/50 placeholder-gray-600"
             />
             <select
               value={trigger.event}
               onChange={(e) =>
                 onChange({ ...trigger, event: e.target.value as "create" | "modify" | "delete" })
               }
-              className="rounded-lg border border-white/[0.06] bg-gray-800/50 px-2 py-2 sm:py-1.5 text-sm text-gray-200 outline-none focus:border-violet-500/50"
+              className="rounded-lg border border-white/[0.06] bg-gray-800/50 px-2 py-1.5 text-sm text-gray-200 outline-none focus:border-violet-500/50"
             >
               <option value="create">Create</option>
               <option value="modify">Modify</option>

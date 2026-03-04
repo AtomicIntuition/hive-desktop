@@ -193,7 +193,7 @@ export function ServerDetail({ serverId, onBack }: ServerDetailProps) {
 
       {/* Description + env vars */}
       {(server.description || server.envVars?.length) && (
-        <div className="mb-6 rounded-xl border border-white/[0.06] bg-gray-900/50 p-5">
+        <div className="mb-6 rounded-xl border border-white/[0.06] bg-gray-900/60 backdrop-blur-sm p-5">
           {server.description && <p className="text-sm text-gray-300">{server.description}</p>}
           {server.envVars && server.envVars.length > 0 && (
             <div className="mt-3">
@@ -213,7 +213,7 @@ export function ServerDetail({ serverId, onBack }: ServerDetailProps) {
       )}
 
       {/* Tabs */}
-      <div className="mb-4 flex gap-1 rounded-lg bg-gray-900/50 p-1 border border-white/[0.06] w-fit">
+      <div className="mb-4 flex gap-1 rounded-lg bg-gray-900/60 backdrop-blur-sm p-1 border border-white/[0.06] w-fit">
         <button
           onClick={() => { setTab("tools"); if (server.connected) handleDiscoverTools(); }}
           className={cn(
@@ -308,7 +308,7 @@ function ToolCard({ serverId, tool }: { serverId: string; tool: McpTool }) {
   const required = (schema.required ?? []) as string[];
 
   return (
-    <div className="rounded-xl border border-white/[0.06] bg-gray-900/50">
+    <div className="rounded-xl border border-white/[0.06] bg-gray-900/60 backdrop-blur-sm">
       <button
         onClick={() => setExpanded(!expanded)}
         className="flex w-full items-center gap-3 p-4 text-left"

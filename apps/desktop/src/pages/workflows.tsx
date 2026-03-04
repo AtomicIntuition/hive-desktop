@@ -17,9 +17,13 @@ export function WorkflowsPage() {
     refresh();
   }, [refresh]);
 
-  // Editor view (replaces the old read-only WorkflowDetail)
+  // Editor view — fill available height so content doesn't overflow
   if (selectedId) {
-    return <WorkflowEditor workflowId={selectedId} onBack={handleBack} />;
+    return (
+      <div className="h-full">
+        <WorkflowEditor workflowId={selectedId} onBack={handleBack} />
+      </div>
+    );
   }
 
   return (
@@ -27,7 +31,7 @@ export function WorkflowsPage() {
       <WorkflowCreator onCreated={(id) => setSelectedId(id)} />
 
       {/* Tabs */}
-      <div className="flex gap-1 rounded-lg bg-gray-900/50 p-1 border border-white/[0.06] w-fit">
+      <div className="flex gap-1 rounded-lg bg-gray-900/60 backdrop-blur-sm p-1 border border-white/[0.06] w-fit">
         <button
           onClick={() => setTab("workflows")}
           className={cn(

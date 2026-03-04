@@ -34,7 +34,7 @@ export function ServerCard({ server, onSelect, onRefresh }: ServerCardProps) {
   };
 
   return (
-    <div className="group rounded-xl border border-white/[0.06] bg-gray-900/50 p-4 transition-colors hover:border-white/[0.1]">
+    <div className="group rounded-xl border border-white/[0.06] bg-gray-900/60 backdrop-blur-sm p-4 transition-colors hover:border-white/[0.1]">
       <div className="flex items-start justify-between">
         <button onClick={onSelect} className="flex flex-1 items-start gap-3 text-left">
           <div className={cn("mt-1 h-2.5 w-2.5 shrink-0 rounded-full", badge.dot)} />

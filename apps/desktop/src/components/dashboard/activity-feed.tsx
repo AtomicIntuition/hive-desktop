@@ -21,7 +21,7 @@ export function ActivityFeed() {
   const items = placeholderItems;
 
   return (
-    <div className="rounded-xl border border-white/[0.06] bg-gray-900/50 p-5">
+    <div className="rounded-xl border border-white/[0.06] bg-gray-900/60 backdrop-blur-sm p-5">
       <h3 className="mb-4 text-sm font-semibold text-gray-300">Activity</h3>
       <div className="space-y-3">
         {items.map((item) => (

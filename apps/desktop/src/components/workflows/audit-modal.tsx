@@ -31,11 +31,13 @@ export function AuditModal() {
   const [fixing, setFixing] = useState(false);
   const [fixChanges, setFixChanges] = useState<string[] | null>(null);
   const [fixChecklist, setFixChecklist] = useState<Array<{ message: string; fixed: boolean }> | null>(null);
+  const [fixWarning, setFixWarning] = useState<string | null>(null);
 
   const handleClose = useCallback(() => {
     setAuditResult(null);
     setFixChanges(null);
     setFixChecklist(null);
+    setFixWarning(null);
   }, [setAuditResult]);
 
   const handleClickStep = useCallback((stepIndex: number | undefined) => {
@@ -46,6 +48,7 @@ export function AuditModal() {
     setAuditResult(null);
     setFixChanges(null);
     setFixChecklist(null);
+    setFixWarning(null);
   }, [steps, setActiveTab, toggleStepExpanded, setAuditResult]);
 
   const handleFix = useCallback(async () => {
@@ -53,6 +56,7 @@ export function AuditModal() {
     setFixing(true);
     setFixChanges(null);
     setFixChecklist(null);
+    setFixWarning(null);
 
     // Snapshot previous issues for checklist comparison
     const previousIssues = [
@@ -64,8 +68,17 @@ export function AuditModal() {
       const result = await fixWorkflow(
         { name, description, trigger, steps },
         auditResult.issues,
-        auditResult.suggestions
+        auditResult.suggestions,
+        auditResult.score // Pass original score for regression guard
       );
+
+      // Check for regression warning
+      if (result.warning) {
+        setFixWarning(result.warning);
+        setFixing(false);
+        setAuditing(false);
+        return;
+      }
 
       // Apply the fixed workflow to the editor
       replaceAllFromJson({
@@ -92,26 +105,42 @@ export function AuditModal() {
 
       setFixChanges(result.changes);
 
-      // Re-audit the fixed workflow
-      setAuditing(true);
-      const newAudit = await auditWorkflow({
-        name: result.name,
-        description: result.description,
-        trigger: result.trigger,
-        steps: result.steps,
-      });
-      setAuditResult(newAudit);
+      // Use inline audit if available (saves a round-trip), otherwise re-audit
+      if (result.audit) {
+        setAuditResult(result.audit);
 
-      // Build checklist by comparing previous issues to new ones
-      const newMessages = new Set([
-        ...newAudit.issues.map((i) => i.message),
-        ...newAudit.suggestions.map((s) => s.message),
-      ]);
-      const checklist = previousIssues.map((msg) => ({
-        message: msg,
-        fixed: !newMessages.has(msg),
-      }));
-      setFixChecklist(checklist);
+        // Build checklist by comparing previous issues to new ones
+        const newMessages = new Set([
+          ...result.audit.issues.map((i) => i.message),
+          ...result.audit.suggestions.map((s) => s.message),
+        ]);
+        const checklist = previousIssues.map((msg) => ({
+          message: msg,
+          fixed: !newMessages.has(msg),
+        }));
+        setFixChecklist(checklist);
+      } else {
+        // Fallback: re-audit the fixed workflow
+        setAuditing(true);
+        const newAudit = await auditWorkflow({
+          name: result.name,
+          description: result.description,
+          trigger: result.trigger,
+          steps: result.steps,
+        });
+        setAuditResult(newAudit);
+
+        // Build checklist by comparing previous issues to new ones
+        const newMessages = new Set([
+          ...newAudit.issues.map((i) => i.message),
+          ...newAudit.suggestions.map((s) => s.message),
+        ]);
+        const checklist = previousIssues.map((msg) => ({
+          message: msg,
+          fixed: !newMessages.has(msg),
+        }));
+        setFixChecklist(checklist);
+      }
     } catch {
       setFixChanges(["Fix failed — try manually editing the issues"]);
     } finally {
@@ -187,6 +216,19 @@ export function AuditModal() {
                 <p className="mt-1 text-xs text-gray-400">{auditResult.summary}</p>
               </div>
             </div>
+
+            {/* Fix Warning (score regression prevented) */}
+            {fixWarning && (
+              <div className="border-b border-white/[0.06] px-6 py-3 bg-amber-500/[0.05]">
+                <div className="flex items-start gap-2">
+                  <AlertTriangle className="h-4 w-4 text-amber-400 mt-0.5 shrink-0" />
+                  <div>
+                    <p className="text-xs font-medium text-amber-300">Fix could not improve workflow</p>
+                    <p className="mt-0.5 text-xs text-gray-400">{fixWarning}</p>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* Fix Checklist (shown after a fix was applied) */}
             {fixChecklist && fixChecklist.length > 0 && (

@@ -52,7 +52,7 @@ export function SettingsPage() {
         <h2 className="mb-4 text-sm font-semibold uppercase tracking-wider text-gray-400">
           Runtime
         </h2>
-        <div className="rounded-xl border border-white/[0.06] bg-gray-900/50 p-5 space-y-4">
+        <div className="rounded-xl border border-white/[0.06] bg-gray-900/60 backdrop-blur-sm p-5 space-y-4">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm text-gray-200">Runtime Status</p>
@@ -77,7 +77,7 @@ export function SettingsPage() {
         <h2 className="mb-4 text-sm font-semibold uppercase tracking-wider text-gray-400">
           AI Provider
         </h2>
-        <div className="rounded-xl border border-white/[0.06] bg-gray-900/50 p-5 space-y-4">
+        <div className="rounded-xl border border-white/[0.06] bg-gray-900/60 backdrop-blur-sm p-5 space-y-4">
           {/* Status */}
           <div className="flex items-center justify-between">
             <div>
@@ -157,7 +157,7 @@ export function SettingsPage() {
         <h2 className="mb-4 text-sm font-semibold uppercase tracking-wider text-gray-400">
           About
         </h2>
-        <div className="rounded-xl border border-white/[0.06] bg-gray-900/50 p-5 space-y-2">
+        <div className="rounded-xl border border-white/[0.06] bg-gray-900/60 backdrop-blur-sm p-5 space-y-2">
           <div className="flex items-center justify-between">
             <span className="text-sm text-gray-300">Hive Desktop</span>
             <span className="text-sm text-gray-500">v{appVersion}</span>

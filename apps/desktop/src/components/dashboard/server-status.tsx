@@ -14,7 +14,7 @@ interface ServerStatusProps {
 
 export function ServerStatus({ servers }: ServerStatusProps) {
   return (
-    <div className="rounded-xl border border-white/[0.06] bg-gray-900/50 p-5">
+    <div className="rounded-xl border border-white/[0.06] bg-gray-900/60 backdrop-blur-sm p-5">
       <h3 className="mb-4 text-sm font-semibold text-gray-300">MCP Servers</h3>
       {servers.length === 0 ? (
         <p className="text-sm text-gray-500">No servers installed yet. Browse the marketplace to get started.</p>

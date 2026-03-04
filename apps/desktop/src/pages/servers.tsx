@@ -31,7 +31,7 @@ export function ServersPage() {
     <div>
       {/* Tabs */}
       <div className="mb-6 flex items-center justify-between">
-        <div className="flex gap-1 rounded-lg bg-gray-900/50 p-1 border border-white/[0.06]">
+        <div className="flex gap-1 rounded-lg bg-gray-900/60 backdrop-blur-sm p-1 border border-white/[0.06]">
           {([
             { value: "installed" as Tab, label: `Installed (${servers.length})` },
             { value: "browse" as Tab, label: "Browse Hive Market" },

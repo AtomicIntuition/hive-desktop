@@ -24,7 +24,7 @@ export function ActiveWorkflows({ workflows }: ActiveWorkflowsProps) {
   const recent = workflows.slice(0, 5);
 
   return (
-    <div className="rounded-xl border border-white/[0.06] bg-gray-900/50 p-5">
+    <div className="rounded-xl border border-white/[0.06] bg-gray-900/60 backdrop-blur-sm p-5">
       <h3 className="mb-4 text-sm font-semibold text-gray-300">Recent Workflows</h3>
       {recent.length === 0 ? (
         <p className="text-sm text-gray-500">No workflows created yet. Describe what you want to automate.</p>

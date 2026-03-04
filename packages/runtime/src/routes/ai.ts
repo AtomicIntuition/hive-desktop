@@ -1,10 +1,12 @@
 import type { FastifyInstance } from "fastify";
 import { getDb } from "../db/index.js";
 import { nanoid } from "nanoid";
-import { isConfigured, setApiKey, removeApiKey, getApiKey, getClient } from "../ai/provider.js";
+import { isConfigured, setApiKey, removeApiKey, getClient } from "../ai/provider.js";
 import { planWorkflow } from "../ai/planner.js";
 import type { WorkflowPlan } from "../ai/planner.js";
-import type { WorkflowAuditResult } from "@hive-desktop/shared";
+import { auditWorkflowPlan } from "../ai/auditor.js";
+import { fixWorkflowPlan } from "../ai/fixer.js";
+import { parseFixResponse } from "../ai/fixer.js";
 
 export async function aiRoutes(app: FastifyInstance): Promise<void> {
   // ── Status ─────────────────────────────────────────────
@@ -89,6 +91,7 @@ export async function aiRoutes(app: FastifyInstance): Promise<void> {
     const row = db.prepare("SELECT * FROM workflows WHERE id = ?").get(id);
     return mapWorkflowRow(row);
   });
+
   // ── Modify Workflow via NL ──────────────────────────────
 
   app.post<{
@@ -142,16 +145,17 @@ export async function aiRoutes(app: FastifyInstance): Promise<void> {
     }
   });
 
-  // ── Fix Workflow ────────────────────────────────────────
+  // ── Fix Workflow (with score guard) ────────────────────
 
   app.post<{
     Body: {
       workflow: { name: string; description: string; trigger: unknown; steps: unknown[] };
       issues: Array<{ severity: string; message: string; stepIndex?: number; stepId?: string }>;
       suggestions: Array<{ severity: string; message: string; stepIndex?: number }>;
+      originalScore?: number;
     };
   }>("/api/ai/fix-workflow", async (request, reply) => {
-    const { workflow, issues, suggestions } = request.body;
+    const { workflow, issues, suggestions, originalScore } = request.body;
 
     if (!workflow?.steps || !Array.isArray(workflow.steps)) {
       return reply.status(400).send({ error: "Workflow with steps array is required" });
@@ -162,25 +166,64 @@ export async function aiRoutes(app: FastifyInstance): Promise<void> {
     }
 
     try {
-      const client = getClient();
-      const response = await client.messages.create({
-        model: "claude-sonnet-4-20250514",
-        max_tokens: 4096,
-        system: buildFixSystemPrompt(),
-        messages: [
-          {
-            role: "user",
-            content: JSON.stringify({ workflow, issues, suggestions }, null, 2),
-          },
-        ],
-      });
+      // First fix attempt
+      let fixed = await fixWorkflowPlan(workflow, issues, suggestions);
 
-      const text = response.content
-        .filter((block) => block.type === "text")
-        .map((block) => ("text" in block ? (block as { text: string }).text : ""))
-        .join("");
+      // If caller provided originalScore, audit the fix and guard against regression
+      if (originalScore !== undefined) {
+        const audit = await auditWorkflowPlan({
+          name: fixed.name,
+          description: fixed.description,
+          trigger: fixed.trigger,
+          steps: fixed.steps,
+        });
 
-      const fixed = parseFixResponse(text, workflow);
+        if (audit.score < originalScore) {
+          // Score dropped — retry once with conservative hint
+          const retryFixed = await fixWorkflowPlan(
+            workflow,
+            issues,
+            suggestions,
+            "Your previous fix attempt made the quality score WORSE (dropped from " +
+              originalScore + " to " + audit.score +
+              "). Be more conservative this time — make minimal targeted changes that address the specific issues without introducing new problems."
+          );
+
+          const retryAudit = await auditWorkflowPlan({
+            name: retryFixed.name,
+            description: retryFixed.description,
+            trigger: retryFixed.trigger,
+            steps: retryFixed.steps,
+          });
+
+          if (retryAudit.score < originalScore) {
+            // Still worse — return original with warning
+            return {
+              ...workflow,
+              changes: [] as string[],
+              warning: `Fix could not improve the workflow (score dropped from ${originalScore} to ${retryAudit.score}). Original preserved.`,
+              newScore: originalScore,
+              audit: null,
+            };
+          }
+
+          // Retry was better
+          return {
+            ...retryFixed,
+            newScore: retryAudit.score,
+            audit: retryAudit,
+          };
+        }
+
+        // First fix didn't regress — return with inline audit
+        return {
+          ...fixed,
+          newScore: audit.score,
+          audit,
+        };
+      }
+
+      // No score guard — return as before
       return fixed;
     } catch (err) {
       const message = (err as Error).message;
@@ -213,25 +256,7 @@ export async function aiRoutes(app: FastifyInstance): Promise<void> {
       }
 
       try {
-        const client = getClient();
-        const response = await client.messages.create({
-          model: "claude-sonnet-4-20250514",
-          max_tokens: 2048,
-          system: buildAuditSystemPrompt(),
-          messages: [
-            {
-              role: "user",
-              content: JSON.stringify(workflow, null, 2),
-            },
-          ],
-        });
-
-        const text = response.content
-          .filter((block) => block.type === "text")
-          .map((block) => ("text" in block ? (block as { text: string }).text : ""))
-          .join("");
-
-        const result = parseAuditResponse(text);
+        const result = await auditWorkflowPlan(workflow);
         return result;
       } catch (err) {
         const message = (err as Error).message;
@@ -245,65 +270,6 @@ export async function aiRoutes(app: FastifyInstance): Promise<void> {
       }
     }
   );
-}
-
-function buildAuditSystemPrompt(): string {
-  return `You are a workflow quality auditor for Hive Desktop, a workflow automation platform that connects MCP (Model Context Protocol) tool servers.
-
-Analyze the given workflow JSON and return a quality audit as JSON.
-
-## What to Check
-1. **Error handling**: Steps with onError "stop" should have retry alternatives for network calls (mcp_call). Missing error handling is a warning.
-2. **Unused variables**: Steps that set outputVar but the variable is never referenced by subsequent steps. This is an info-level note.
-3. **Missing required arguments**: mcp_call steps should have a server, tool, and reasonable arguments.
-4. **Unreachable steps**: Steps after an unconditional stop that can never execute.
-5. **Trigger issues**: Intervals under 60s may be too aggressive. Cron expressions should be valid.
-6. **Security**: Condition/transform steps using eval-like patterns or accessing dangerous globals.
-7. **Data flow**: Variables referenced via {{var}} that are never defined by any prior step's outputVar.
-
-## Output Format
-Respond with ONLY valid JSON, no markdown fences:
-{
-  "score": <0-100>,
-  "summary": "<1-2 sentence summary>",
-  "issues": [
-    { "severity": "error"|"warning"|"info", "message": "<description>", "stepIndex": <0-based index or omit>, "stepId": "<step id or omit>" }
-  ],
-  "suggestions": [
-    { "severity": "info", "message": "<improvement suggestion>", "stepIndex": <0-based index or omit> }
-  ]
-}
-
-## Scoring
-- Start at 100
-- Each error: -15 to -25
-- Each warning: -5 to -10
-- Each info: -1 to -3
-- Minimum score: 0
-
-Be concise and actionable in messages. Focus on real problems, not style preferences.`;
-}
-
-function parseAuditResponse(text: string): WorkflowAuditResult {
-  const codeBlockMatch = text.match(/```(?:json)?\s*\n?([\s\S]*?)\n?```/);
-  const json = codeBlockMatch ? codeBlockMatch[1].trim() : text.match(/\{[\s\S]*\}/)?.[0] ?? "";
-
-  try {
-    const parsed = JSON.parse(json);
-    return {
-      score: Math.max(0, Math.min(100, parsed.score ?? 50)),
-      summary: parsed.summary ?? "Audit complete.",
-      issues: Array.isArray(parsed.issues) ? parsed.issues : [],
-      suggestions: Array.isArray(parsed.suggestions) ? parsed.suggestions : [],
-    };
-  } catch {
-    return {
-      score: 50,
-      summary: "Could not parse audit results.",
-      issues: [{ severity: "warning", message: "AI response could not be parsed" }],
-      suggestions: [],
-    };
-  }
 }
 
 function buildModifySystemPrompt(): string {
@@ -333,58 +299,6 @@ Respond with ONLY valid JSON (no markdown fences):
   "steps": [ ... ],
   "changes": ["<human-readable description of each change made>"]
 }`;
-}
-
-function buildFixSystemPrompt(): string {
-  return `You are a workflow fixer for Hive Desktop, a workflow automation platform using MCP (Model Context Protocol) tool servers.
-
-You will receive a workflow JSON along with audit issues and suggestions. Your job is to FIX the workflow by addressing the issues.
-
-## Rules
-1. Fix all "error" severity issues. Fix "warning" issues where possible. Apply reasonable suggestions.
-2. Preserve the workflow's intent — don't change what it does, just fix HOW it does it.
-3. For missing error handling: add onError "retry" with retryCount 3 and retryDelay 3000 for mcp_call steps.
-4. For unused variables: remove the outputVar if it's truly unused, or leave it if it might be useful.
-5. For missing arguments: add reasonable defaults or placeholders.
-6. For unreachable steps: remove them or restructure so they're reachable.
-7. Keep all step IDs the same when possible.
-8. Keep the same trigger unless the issue specifically mentions the trigger.
-
-## Output Format
-Respond with ONLY valid JSON (no markdown fences):
-{
-  "name": "<fixed name>",
-  "description": "<fixed description>",
-  "trigger": { ... },
-  "steps": [ ... ],
-  "changes": ["<human-readable description of each change made>"]
-}
-
-The steps array must contain complete step objects with all fields (id, name, type, onError, etc.).`;
-}
-
-function parseFixResponse(
-  text: string,
-  original: { name: string; description: string; trigger: unknown; steps: unknown[] }
-): { name: string; description: string; trigger: unknown; steps: unknown[]; changes: string[] } {
-  const codeBlockMatch = text.match(/```(?:json)?\s*\n?([\s\S]*?)\n?```/);
-  const json = codeBlockMatch ? codeBlockMatch[1].trim() : text.match(/\{[\s\S]*\}/)?.[0] ?? "";
-
-  try {
-    const parsed = JSON.parse(json);
-    return {
-      name: parsed.name ?? original.name,
-      description: parsed.description ?? original.description,
-      trigger: parsed.trigger ?? original.trigger,
-      steps: Array.isArray(parsed.steps) ? parsed.steps : original.steps,
-      changes: Array.isArray(parsed.changes) ? parsed.changes : ["Applied fixes"],
-    };
-  } catch {
-    return {
-      ...original,
-      changes: ["Could not parse AI fix response — no changes applied"],
-    };
-  }
 }
 
 function mapWorkflowRow(row: unknown) {

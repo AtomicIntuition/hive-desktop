@@ -11,6 +11,8 @@
 
 import cron from "node-cron";
 import { watch, type FSWatcher } from "chokidar";
+import { resolve, normalize } from "node:path";
+import { homedir } from "node:os";
 import type { Workflow, WorkflowTrigger } from "@hive-desktop/shared";
 import { getDb } from "../db/index.js";
 import { runWorkflow } from "./runner.js";
@@ -144,7 +146,16 @@ function scheduleFileWatch(
   path: string,
   event: "create" | "modify" | "delete"
 ): () => void {
-  const watcher: FSWatcher = watch(path, {
+  // Validate path to prevent traversal attacks
+  const resolvedPath = resolve(normalize(path));
+  const home = homedir();
+  const allowedPrefixes = [home, "/tmp", resolve(".")];
+  const isAllowed = allowedPrefixes.some((prefix) => resolvedPath.startsWith(prefix));
+  if (!isAllowed) {
+    throw new Error(`File watch path must be within home directory, /tmp, or working directory. Got: ${resolvedPath}`);
+  }
+
+  const watcher: FSWatcher = watch(resolvedPath, {
     ignoreInitial: true,
     persistent: true,
   });

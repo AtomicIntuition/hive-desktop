@@ -152,9 +152,8 @@ describe("AuditModal", () => {
   });
 
   it("fix calls updateWorkflow to auto-save", async () => {
-    const { fixWorkflow, auditWorkflow, updateWorkflow } = await import("@/lib/runtime-client");
+    const { fixWorkflow, updateWorkflow } = await import("@/lib/runtime-client");
     const mockFix = vi.mocked(fixWorkflow);
-    const mockAudit = vi.mocked(auditWorkflow);
     const mockUpdate = vi.mocked(updateWorkflow);
 
     mockFix.mockResolvedValue({
@@ -163,12 +162,13 @@ describe("AuditModal", () => {
       trigger: { type: "manual" },
       steps: [{ id: "s1", name: "Fixed Step", type: "mcp_call", server: "test", tool: "test", onError: "stop" }],
       changes: ["Fixed step"],
-    });
-    mockAudit.mockResolvedValue({
-      score: 90,
-      summary: "Better now.",
-      issues: [],
-      suggestions: [],
+      newScore: 90,
+      audit: {
+        score: 90,
+        summary: "Better now.",
+        issues: [],
+        suggestions: [],
+      },
     });
     mockUpdate.mockResolvedValue({
       id: "wf-1",
@@ -198,6 +198,82 @@ describe("AuditModal", () => {
         name: "Test",
       }));
     });
+  });
+
+  it("shows warning when fix would regress score", async () => {
+    const { fixWorkflow } = await import("@/lib/runtime-client");
+    const mockFix = vi.mocked(fixWorkflow);
+
+    mockFix.mockResolvedValue({
+      name: "Test",
+      description: "",
+      trigger: { type: "manual" },
+      steps: [{ id: "s1", name: "Step 1", type: "mcp_call", server: "test", tool: "test", onError: "stop" }],
+      changes: [],
+      warning: "Fix could not improve the workflow (score dropped from 75 to 60). Original preserved.",
+      newScore: 75,
+      audit: null,
+    });
+
+    useWorkflowEditorStore.getState().setAuditResult({
+      score: 75,
+      summary: "Decent.",
+      issues: [{ severity: "warning", message: "Some issue" }],
+      suggestions: [],
+    });
+
+    render(<AuditModal />);
+    fireEvent.click(screen.getByText("Fix Issues"));
+
+    await waitFor(() => {
+      expect(screen.getByText("Fix could not improve workflow")).toBeDefined();
+    });
+  });
+
+  it("uses inline audit result instead of re-auditing", async () => {
+    const { fixWorkflow, auditWorkflow } = await import("@/lib/runtime-client");
+    const mockFix = vi.mocked(fixWorkflow);
+    const mockAudit = vi.mocked(auditWorkflow);
+
+    mockFix.mockResolvedValue({
+      name: "Test",
+      description: "",
+      trigger: { type: "manual" },
+      steps: [{ id: "s1", name: "Fixed Step", type: "mcp_call", server: "test", tool: "test", onError: "retry" }],
+      changes: ["Added retry"],
+      newScore: 95,
+      audit: {
+        score: 95,
+        summary: "Excellent.",
+        issues: [],
+        suggestions: [],
+      },
+    });
+
+    const { updateWorkflow } = await import("@/lib/runtime-client");
+    vi.mocked(updateWorkflow).mockResolvedValue({
+      id: "wf-1", name: "Test", description: "", status: "draft",
+      trigger: { type: "manual" }, steps: [], createdAt: "", updatedAt: "",
+      runCount: 0, errorCount: 0,
+    });
+
+    useWorkflowEditorStore.getState().setAuditResult({
+      score: 70,
+      summary: "Needs work.",
+      issues: [{ severity: "warning", message: "Missing retry" }],
+      suggestions: [],
+    });
+
+    render(<AuditModal />);
+    fireEvent.click(screen.getByText("Fix Issues"));
+
+    await waitFor(() => {
+      // Should show the inline audit score
+      expect(screen.getByText("95")).toBeDefined();
+    });
+
+    // auditWorkflow should NOT have been called (inline audit was used)
+    expect(mockAudit).not.toHaveBeenCalled();
   });
 
   it("close button clears audit result", () => {

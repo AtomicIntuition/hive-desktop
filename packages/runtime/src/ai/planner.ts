@@ -6,13 +6,16 @@
  * 2. Planner gathers context: installed servers, available templates
  * 3. Sends structured prompt to Claude
  * 4. Parses response into a WorkflowPlan (preview-ready)
- * 5. User reviews and confirms → workflow is created
+ * 5. Self-validates: audit → fix → re-audit (max 2 iterations)
+ * 6. User reviews and confirms → workflow is created
  */
 
 import type { WorkflowTrigger, WorkflowStep } from "@hive-desktop/shared";
 import { getClient } from "./provider.js";
 import { getAll as getAllServers } from "../mcp/registry.js";
 import { getTemplates } from "../workflow/templates.js";
+import { auditWorkflowPlan } from "./auditor.js";
+import { fixWorkflowPlan } from "./fixer.js";
 
 export interface WorkflowPlan {
   name: string;
@@ -25,10 +28,17 @@ export interface WorkflowPlan {
     installed: boolean;
   }>;
   reasoning: string;
+  qualityScore: number;
+  auditSummary: string;
+  iterationsUsed: number;
 }
+
+const QUALITY_THRESHOLD = 90;
+const MAX_ITERATIONS = 2;
 
 /**
  * Generate a workflow plan from a natural language description.
+ * Self-validates via audit/fix loop for quality assurance.
  */
 export async function planWorkflow(prompt: string): Promise<WorkflowPlan> {
   const client = getClient();
@@ -40,6 +50,113 @@ export async function planWorkflow(prompt: string): Promise<WorkflowPlan> {
 
   const systemPrompt = buildSystemPrompt(installedSlugs, templates.map((t) => t.slug));
 
+  // Step 1: Generate initial plan
+  const basePlan = await generatePlan(client, systemPrompt, prompt, installedSlugs);
+
+  // Step 2: Self-validate via audit/fix loop
+  let bestPlan = basePlan;
+  let bestScore = 0;
+  let iterationsUsed = 0;
+
+  try {
+    const audit = await auditWorkflowPlan({
+      name: basePlan.name,
+      description: basePlan.description,
+      trigger: basePlan.trigger,
+      steps: basePlan.steps,
+    });
+
+    bestScore = audit.score;
+    bestPlan = { ...basePlan, qualityScore: audit.score, auditSummary: audit.summary };
+
+    const hasErrors = audit.issues.some((i) => i.severity === "error");
+
+    if ((audit.score < QUALITY_THRESHOLD || hasErrors) && (audit.issues.length > 0 || audit.suggestions.length > 0)) {
+      // Iteration 1: Fix issues
+      iterationsUsed = 1;
+
+      try {
+        const fixed = await fixWorkflowPlan(
+          { name: basePlan.name, description: basePlan.description, trigger: basePlan.trigger, steps: basePlan.steps },
+          audit.issues,
+          audit.suggestions
+        );
+
+        const fixedAudit = await auditWorkflowPlan({
+          name: fixed.name,
+          description: fixed.description,
+          trigger: fixed.trigger,
+          steps: fixed.steps,
+        });
+
+        if (fixedAudit.score >= bestScore) {
+          // Fix improved or maintained score — use it
+          bestScore = fixedAudit.score;
+          bestPlan = {
+            ...basePlan,
+            name: fixed.name as string,
+            description: fixed.description as string,
+            trigger: fixed.trigger as WorkflowTrigger,
+            steps: fixed.steps as WorkflowStep[],
+            qualityScore: fixedAudit.score,
+            auditSummary: fixedAudit.summary,
+          };
+        } else if (fixedAudit.score < bestScore) {
+          // Fix made it worse — retry with conservative hint
+          iterationsUsed = 2;
+
+          try {
+            const retryFixed = await fixWorkflowPlan(
+              { name: basePlan.name, description: basePlan.description, trigger: basePlan.trigger, steps: basePlan.steps },
+              audit.issues,
+              audit.suggestions,
+              "Your previous fix attempt made the quality score WORSE. Be more conservative — make minimal targeted changes that address only the specific errors and warnings."
+            );
+
+            const retryAudit = await auditWorkflowPlan({
+              name: retryFixed.name,
+              description: retryFixed.description,
+              trigger: retryFixed.trigger,
+              steps: retryFixed.steps,
+            });
+
+            if (retryAudit.score > bestScore) {
+              bestScore = retryAudit.score;
+              bestPlan = {
+                ...basePlan,
+                name: retryFixed.name as string,
+                description: retryFixed.description as string,
+                trigger: retryFixed.trigger as WorkflowTrigger,
+                steps: retryFixed.steps as WorkflowStep[],
+                qualityScore: retryAudit.score,
+                auditSummary: retryAudit.summary,
+              };
+            }
+          } catch {
+            // Retry failed — keep best so far
+          }
+        }
+      } catch {
+        // Fix failed — keep original with audit score
+      }
+    }
+  } catch {
+    // Audit failed — return plan without quality score
+    bestPlan = { ...basePlan, qualityScore: 0, auditSummary: "Audit unavailable" };
+  }
+
+  return { ...bestPlan, iterationsUsed };
+}
+
+/**
+ * Generate a raw plan from Claude (no validation).
+ */
+async function generatePlan(
+  client: ReturnType<typeof getClient>,
+  systemPrompt: string,
+  prompt: string,
+  installedSlugs: string[]
+): Promise<WorkflowPlan> {
   const response = await client.messages.create({
     model: "claude-sonnet-4-20250514",
     max_tokens: 4096,
@@ -62,7 +179,7 @@ export async function planWorkflow(prompt: string): Promise<WorkflowPlan> {
     .join("");
 
   // Parse the JSON plan from the response
-  return parsePlanResponse(text, installedSlugs);
+  return { ...parsePlanResponse(text, installedSlugs), qualityScore: 0, auditSummary: "", iterationsUsed: 0 };
 }
 
 function buildSystemPrompt(installedSlugs: string[], templateSlugs: string[]): string {
@@ -134,10 +251,16 @@ Every string value MUST use double quotes ("). Never use backticks (\`) or singl
 Example structure:
 {"name":"Workflow Name","description":"What this workflow does","trigger":{...},"steps":[...],"requiredServers":["server-slug-1","server-slug-2"],"reasoning":"Brief explanation of your design choices"}
 
+## Quality Requirements (CRITICAL)
+Your workflow will be automatically audited. To pass quality checks:
+1. ALL mcp_call steps MUST have onError "retry" with retryCount (2-3) and retryDelay (3000-5000). Network calls fail — always retry.
+2. No orphaned outputVars — every variable set by a step's outputVar must be referenced by at least one subsequent step via {{varName}}.
+3. Complete data flow — every {{varName}} reference must be defined by a prior step's outputVar.
+4. The workflow must produce user-visible output — include at least one notify step or a final transform that surfaces results.
+5. Use meaningful step IDs (e.g., "fetch-payments", "check-threshold"), not generic ones.
+
 ## Guidelines
-- Use meaningful step IDs (e.g., "fetch-payments", "check-threshold")
 - Set appropriate error handling: "retry" for network calls, "stop" for critical checks, "continue" for notifications
-- Add retryCount (2-3) and retryDelay (3000-5000) for retry steps
 - Use conditions to short-circuit when there's nothing to process
 - Choose the most appropriate trigger type for the use case
 - For intervals, use reasonable defaults (60s minimum, usually 300s+)
@@ -145,7 +268,7 @@ Example structure:
 - Keep workflows focused — 3-7 steps is ideal`;
 }
 
-function parsePlanResponse(text: string, installedSlugs: string[]): WorkflowPlan {
+function parsePlanResponse(text: string, installedSlugs: string[]): Omit<WorkflowPlan, "qualityScore" | "auditSummary" | "iterationsUsed"> {
   // Try to extract JSON from the response
   let json: string;
 

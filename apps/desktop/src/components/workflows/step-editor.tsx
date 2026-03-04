@@ -154,7 +154,7 @@ function StepCard({
   return (
     <div
       className={cn(
-        "rounded-xl border border-white/[0.06] bg-gray-900/50 border-l-2 overflow-hidden",
+        "rounded-xl border border-white/[0.06] bg-gray-900/60 backdrop-blur-sm border-l-2 overflow-hidden",
         leftBorder
       )}
     >

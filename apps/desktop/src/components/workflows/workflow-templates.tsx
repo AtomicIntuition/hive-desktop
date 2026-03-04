@@ -82,7 +82,7 @@ export function WorkflowTemplates({ onCreated }: WorkflowTemplatesProps) {
         return (
           <div
             key={template.slug}
-            className="rounded-xl border border-white/[0.06] bg-gray-900/50 p-4"
+            className="rounded-xl border border-white/[0.06] bg-gray-900/60 backdrop-blur-sm p-4"
           >
             <div className="flex items-start gap-3">
               <div className="rounded-lg bg-violet-500/10 p-2">

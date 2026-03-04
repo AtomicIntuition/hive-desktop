@@ -275,6 +275,9 @@ export interface WorkflowPlan {
   steps: unknown[];
   requiredServers: Array<{ slug: string; name: string; installed: boolean }>;
   reasoning: string;
+  qualityScore: number;
+  auditSummary: string;
+  iterationsUsed: number;
 }
 
 export async function planWorkflowAI(prompt: string): Promise<WorkflowPlan> {
@@ -303,14 +306,26 @@ export async function auditWorkflow(workflow: {
   });
 }
 
+export interface FixWorkflowResponse {
+  name: string;
+  description: string;
+  trigger: unknown;
+  steps: unknown[];
+  changes: string[];
+  warning?: string;
+  newScore?: number;
+  audit?: WorkflowAuditResult | null;
+}
+
 export async function fixWorkflow(
   workflow: { name: string; description: string; trigger: unknown; steps: unknown[] },
   issues: WorkflowAuditItem[],
-  suggestions: WorkflowAuditItem[]
-): Promise<{ name: string; description: string; trigger: unknown; steps: unknown[]; changes: string[] }> {
+  suggestions: WorkflowAuditItem[],
+  originalScore?: number
+): Promise<FixWorkflowResponse> {
   return request("/api/ai/fix-workflow", {
     method: "POST",
-    body: JSON.stringify({ workflow, issues, suggestions }),
+    body: JSON.stringify({ workflow, issues, suggestions, originalScore }),
   });
 }
 
