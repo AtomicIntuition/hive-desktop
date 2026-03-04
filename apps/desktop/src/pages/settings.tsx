@@ -4,7 +4,7 @@ import { Save, ExternalLink, Check, Trash2, Loader2 } from "lucide-react";
 import { getAiStatus, setAiApiKey, removeAiApiKey } from "@/lib/runtime-client";
 
 export function SettingsPage() {
-  const { runtimeConnected, runtimePort } = useAppStore();
+  const { runtimeConnected, runtimePort, appVersion } = useAppStore();
   const [anthropicKey, setAnthropicKey] = useState("");
   const [aiStatus, setAiStatus] = useState<{ configured: boolean; model: string } | null>(null);
   const [saving, setSaving] = useState(false);
@@ -160,7 +160,7 @@ export function SettingsPage() {
         <div className="rounded-xl border border-white/[0.06] bg-gray-900/50 p-5 space-y-2">
           <div className="flex items-center justify-between">
             <span className="text-sm text-gray-300">Hive Desktop</span>
-            <span className="text-sm text-gray-500">v0.1.0</span>
+            <span className="text-sm text-gray-500">v{appVersion}</span>
           </div>
           <p className="text-xs text-gray-500">
             Local AI Agent Workflow Runtime — powered by Hive Market

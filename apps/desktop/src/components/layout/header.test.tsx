@@ -6,7 +6,7 @@ import { useAppStore } from "@/stores/app-store";
 
 describe("Header", () => {
   beforeEach(() => {
-    useAppStore.setState({ appVersion: "0.1.0", runtimeConnected: true });
+    useAppStore.setState({ appVersion: "0.2.0", runtimeConnected: true });
   });
 
   it("renders page title for dashboard", () => {
@@ -33,7 +33,7 @@ describe("Header", () => {
         <Header />
       </MemoryRouter>
     );
-    expect(screen.getByText("v0.1.0")).toBeDefined();
+    expect(screen.getByText("v0.2.0")).toBeDefined();
   });
 
   it("shows runtime connected indicator", () => {
