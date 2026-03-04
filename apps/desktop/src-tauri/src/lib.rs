@@ -1,6 +1,8 @@
 mod commands;
 mod tray;
 
+use tauri_plugin_shell::ShellExt;
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -12,7 +14,24 @@ pub fn run() {
             // Create system tray
             tray::create_tray(app.handle())?;
 
-            // Log that we're ready
+            // Attempt to spawn the Node.js runtime server
+            let shell = app.handle().shell();
+            let result = shell
+                .command("node")
+                .args(["-e", "require('@hive-desktop/runtime')"])
+                .spawn();
+
+            match result {
+                Ok(child) => {
+                    println!("[tauri] Runtime server spawned (pid: {})", child.pid());
+                }
+                Err(e) => {
+                    // Try npx as fallback
+                    println!("[tauri] Could not spawn runtime via node: {e}");
+                    println!("[tauri] Runtime server not auto-started — start manually with: pnpm dev:runtime");
+                }
+            }
+
             println!("[tauri] Hive Desktop ready");
 
             Ok(())

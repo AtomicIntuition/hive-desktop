@@ -16,8 +16,10 @@ import {
   confirmWorkflowPlan,
   getAiStatus,
   installServer,
+  getMarketTool,
   type WorkflowPlan,
 } from "@/lib/runtime-client";
+import type { ServerEnvVar } from "@hive-desktop/shared";
 import { useWorkflows } from "@/hooks/use-workflows";
 
 export function WorkflowCreator() {
@@ -218,19 +220,55 @@ function WorkflowPlanPreview({ plan, onConfirm, onDiscard, confirming }: PlanPre
   const [installedServers, setInstalledServers] = useState<Set<string>>(
     new Set(plan.requiredServers.filter((s) => s.installed).map((s) => s.slug))
   );
+  const [serverEnvVars, setServerEnvVars] = useState<Record<string, ServerEnvVar[]>>({});
+
+  // Fetch env var requirements for all required servers
+  useEffect(() => {
+    const fetchEnvVars = async () => {
+      const envMap: Record<string, ServerEnvVar[]> = {};
+      for (const server of plan.requiredServers) {
+        try {
+          const tool = await getMarketTool(server.slug);
+          if (tool.envVars && tool.envVars.length > 0) {
+            envMap[server.slug] = tool.envVars;
+          }
+        } catch {
+          // Tool not found in market — skip
+        }
+      }
+      setServerEnvVars(envMap);
+    };
+    fetchEnvVars();
+  }, [plan.requiredServers]);
 
   const missingServers = plan.requiredServers.filter(
     (s) => !s.installed && !installedServers.has(s.slug)
   );
 
+  // Collect all env vars needed across all required servers
+  const allRequiredEnvVars = plan.requiredServers.flatMap((s) =>
+    (serverEnvVars[s.slug] ?? []).map((v) => ({ ...v, server: s.slug }))
+  );
+
   const handleInstallServer = async (slug: string) => {
     setInstallingServer(slug);
     try {
+      // Fetch full tool details from Hive Market for proper install
+      let toolData: { name: string; npmPackage?: string; installCommand?: string; envVars?: ServerEnvVar[]; description?: string } | null = null;
+      try {
+        const tool = await getMarketTool(slug);
+        toolData = tool;
+      } catch {
+        // Fallback if market fetch fails
+      }
+
       await installServer({
         slug,
-        name: slug.replace(/-mcp$/, "").replace(/-/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()) + " MCP",
-        npmPackage: slug,
-        installCommand: "npx",
+        name: toolData?.name ?? slug.replace(/-mcp$/, "").replace(/-/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()) + " MCP",
+        description: toolData?.description,
+        npmPackage: toolData?.npmPackage ?? slug,
+        installCommand: (toolData?.installCommand as "npx" | "uvx") ?? "npx",
+        envVars: toolData?.envVars,
       });
       setInstalledServers((prev) => new Set(prev).add(slug));
     } catch (err) {
@@ -307,6 +345,35 @@ function WorkflowPlanPreview({ plan, onConfirm, onDiscard, confirming }: PlanPre
                   )}
                   Install
                 </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Required Environment Variables */}
+      {allRequiredEnvVars.length > 0 && (
+        <div className="border-b border-violet-500/10 bg-violet-500/[0.02] p-4">
+          <div className="flex items-center gap-2 text-sm text-violet-300 mb-2">
+            <Settings className="h-4 w-4" />
+            Required API keys — add these in Vault before running:
+          </div>
+          <div className="space-y-1.5">
+            {allRequiredEnvVars.map((v) => (
+              <div
+                key={`${v.server}-${v.name}`}
+                className="flex items-center gap-2 rounded-lg bg-gray-900/50 px-3 py-2"
+              >
+                <code className="rounded bg-gray-800/50 px-1.5 py-0.5 font-mono text-xs text-amber-300">
+                  {v.name}
+                </code>
+                <span className="flex-1 text-xs text-gray-500">{v.description}</span>
+                <span className="text-[10px] text-gray-600 font-mono">{v.server}</span>
+                {v.required && (
+                  <span className="rounded-full bg-red-500/10 px-1.5 py-0.5 text-[10px] text-red-400">
+                    required
+                  </span>
+                )}
               </div>
             ))}
           </div>

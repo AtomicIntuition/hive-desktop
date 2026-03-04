@@ -56,11 +56,16 @@ export function WorkflowDetail({ workflowId, onBack }: WorkflowDetailProps) {
     return () => clearInterval(interval);
   }, [refresh]);
 
+  const [actionError, setActionError] = useState<string | null>(null);
+
   const handleRun = async () => {
     setBusy(true);
+    setActionError(null);
     try {
       await triggerRun(workflowId);
       setTimeout(refresh, 1000);
+    } catch (err) {
+      setActionError((err as Error).message || "Failed to run workflow. Is the runtime server running?");
     } finally {
       setBusy(false);
     }
@@ -68,9 +73,12 @@ export function WorkflowDetail({ workflowId, onBack }: WorkflowDetailProps) {
 
   const handleActivate = async () => {
     setBusy(true);
+    setActionError(null);
     try {
       await activateWorkflow(workflowId);
       await refresh();
+    } catch (err) {
+      setActionError((err as Error).message || "Failed to activate workflow. Is the runtime server running?");
     } finally {
       setBusy(false);
     }
@@ -78,9 +86,12 @@ export function WorkflowDetail({ workflowId, onBack }: WorkflowDetailProps) {
 
   const handlePause = async () => {
     setBusy(true);
+    setActionError(null);
     try {
       await pauseWorkflow(workflowId);
       await refresh();
+    } catch (err) {
+      setActionError((err as Error).message || "Failed to pause workflow. Is the runtime server running?");
     } finally {
       setBusy(false);
     }
@@ -169,6 +180,16 @@ export function WorkflowDetail({ workflowId, onBack }: WorkflowDetailProps) {
           )}
         </div>
       </div>
+
+      {/* Action Error */}
+      {actionError && (
+        <div className="mb-4 rounded-lg border border-red-500/20 bg-red-500/[0.06] px-4 py-3">
+          <div className="flex items-center gap-2 text-sm text-red-400">
+            <AlertCircle className="h-4 w-4 shrink-0" />
+            <span>{actionError}</span>
+          </div>
+        </div>
+      )}
 
       {/* Description */}
       {workflow.description && (
