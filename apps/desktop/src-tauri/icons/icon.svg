@@ -1,0 +1,61 @@
+<svg viewBox="0 0 1024 1024" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1024" y2="1024">
+      <stop offset="0%" stop-color="#7C3AED"/>
+      <stop offset="100%" stop-color="#4C1D95"/>
+    </linearGradient>
+    <linearGradient id="hex-fill" x1="200" y1="100" x2="824" y2="924">
+      <stop offset="0%" stop-color="#8B5CF6"/>
+      <stop offset="100%" stop-color="#6D28D9"/>
+    </linearGradient>
+    <linearGradient id="hex-stroke" x1="200" y1="100" x2="824" y2="924">
+      <stop offset="0%" stop-color="#A78BFA"/>
+      <stop offset="100%" stop-color="#7C3AED"/>
+    </linearGradient>
+    <linearGradient id="amber-glow" x1="400" y1="350" x2="624" y2="674">
+      <stop offset="0%" stop-color="#F59E0B"/>
+      <stop offset="100%" stop-color="#D97706"/>
+    </linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="8" stdDeviation="20" flood-color="#4C1D95" flood-opacity="0.5"/>
+    </filter>
+    <filter id="inner-glow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="15" result="blur"/>
+      <feComposite in="SourceGraphic" in2="blur" operator="over"/>
+    </filter>
+  </defs>
+
+  <!-- Background rounded square -->
+  <rect width="1024" height="1024" rx="220" fill="url(#bg)"/>
+
+  <!-- Subtle radial glow -->
+  <circle cx="512" cy="480" r="350" fill="#8B5CF6" opacity="0.15"/>
+
+  <!-- Main hexagon -->
+  <path d="M512 120L876 330V750L512 960L148 750V330L512 120Z"
+        fill="url(#hex-fill)" stroke="url(#hex-stroke)" stroke-width="8" filter="url(#shadow)"/>
+
+  <!-- Inner hexagon grid -->
+  <path d="M512 280L740 412V676L512 808L284 676V412L512 280Z"
+        fill="none" stroke="rgba(255,255,255,0.15)" stroke-width="4"/>
+
+  <!-- Inner-inner hexagon -->
+  <path d="M512 400L624 465V595L512 660L400 595V465L512 400Z"
+        fill="none" stroke="rgba(255,255,255,0.1)" stroke-width="3"/>
+
+  <!-- Workflow nodes - three connected dots forming a flow -->
+  <!-- Top node -->
+  <circle cx="512" cy="380" r="28" fill="white" opacity="0.9"/>
+  <!-- Bottom-left node -->
+  <circle cx="420" cy="600" r="28" fill="url(#amber-glow)" opacity="0.9"/>
+  <!-- Bottom-right node -->
+  <circle cx="604" cy="600" r="28" fill="white" opacity="0.9"/>
+
+  <!-- Connecting lines (workflow paths) -->
+  <line x1="512" y1="408" x2="430" y2="575" stroke="rgba(255,255,255,0.4)" stroke-width="5" stroke-linecap="round"/>
+  <line x1="512" y1="408" x2="594" y2="575" stroke="rgba(255,255,255,0.4)" stroke-width="5" stroke-linecap="round"/>
+  <line x1="448" y1="600" x2="576" y2="600" stroke="rgba(245,158,11,0.5)" stroke-width="5" stroke-linecap="round"/>
+
+  <!-- Small play triangle in center suggesting "runtime" -->
+  <path d="M496 475L540 500L496 525Z" fill="white" opacity="0.7"/>
+</svg>
