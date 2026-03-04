@@ -17,7 +17,7 @@ describe("useRuntime", () => {
   });
 
   it("sets runtimeConnected to true when health check passes", async () => {
-    mockCheckHealth.mockResolvedValue({ status: "ok", version: "0.3.0", uptime: 100, servers: { running: 0 } });
+    mockCheckHealth.mockResolvedValue({ status: "ok", version: "0.3.1", uptime: 100, servers: { running: 0 } });
     renderHook(() => useRuntime());
 
     await waitFor(() => {
@@ -36,7 +36,7 @@ describe("useRuntime", () => {
   });
 
   it("returns runtimeConnected state", () => {
-    mockCheckHealth.mockResolvedValue({ status: "ok", version: "0.3.0", uptime: 100, servers: { running: 0 } });
+    mockCheckHealth.mockResolvedValue({ status: "ok", version: "0.3.1", uptime: 100, servers: { running: 0 } });
     const { result } = renderHook(() => useRuntime());
     expect(typeof result.current.runtimeConnected).toBe("boolean");
   });

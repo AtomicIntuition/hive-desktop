@@ -24,7 +24,7 @@ vi.mock("@/hooks/use-websocket-editor", () => ({
 
 vi.mock("@/stores/app-store", () => ({
   useAppStore: vi.fn((selector) => {
-    const state = { runtimeConnected: true, runtimePort: 45678, appVersion: "0.3.0", sidebarCollapsed: false };
+    const state = { runtimeConnected: true, runtimePort: 45678, appVersion: "0.3.1", sidebarCollapsed: false };
     return selector ? selector(state) : state;
   }),
 }));

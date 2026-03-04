@@ -19,7 +19,7 @@ vi.mock("@/lib/runtime-client", () => ({
 
 describe("AppLayout", () => {
   beforeEach(() => {
-    useAppStore.setState({ sidebarCollapsed: false, runtimeConnected: true, appVersion: "0.3.0" });
+    useAppStore.setState({ sidebarCollapsed: false, runtimeConnected: true, appVersion: "0.3.1" });
   });
 
   it("renders sidebar with brand", () => {
@@ -48,6 +48,6 @@ describe("AppLayout", () => {
         <AppLayout />
       </MemoryRouter>
     );
-    expect(screen.getByText("v0.3.0")).toBeDefined();
+    expect(screen.getByText("v0.3.1")).toBeDefined();
   });
 });
