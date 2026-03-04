@@ -1,6 +1,6 @@
 import type { FastifyInstance } from "fastify";
 
-const HIVE_MARKET_URL = process.env.HIVE_MARKET_URL ?? "https://hivemarket.ai";
+const HIVE_MARKET_URL = process.env.HIVE_MARKET_URL ?? "https://hive-mcp.vercel.app";
 
 export async function marketRoutes(app: FastifyInstance): Promise<void> {
   // Proxy search to Hive Market API

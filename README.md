@@ -9,7 +9,7 @@
 
 **Local AI Agent Workflow Runtime**
 
-Hive Desktop is a native desktop app that lets you wire MCP (Model Context Protocol) tools into persistent, event-driven workflows using natural language. Discover tools from [Hive Market](https://hivemarket.ai), install them locally, and build automations that run on your machine. Your API keys never leave your device.
+Hive Desktop is a native desktop app that lets you wire MCP (Model Context Protocol) tools into persistent, event-driven workflows using natural language. Discover tools from [Hive Market](https://hive-mcp.vercel.app), install them locally, and build automations that run on your machine. Your API keys never leave your device.
 
 > Think "local-first n8n" meets "App Store for AI tools" — but you describe what you want in plain English and AI builds the workflow for you.
 
@@ -71,7 +71,7 @@ Hive Desktop is a native desktop app that lets you wire MCP (Model Context Proto
 ## Features
 
 ### MCP Server Management
-- Browse and install MCP tools from [Hive Market](https://hivemarket.ai)
+- Browse and install MCP tools from [Hive Market](https://hive-mcp.vercel.app)
 - Start, stop, restart servers with process lifecycle management
 - Connect to servers via MCP stdio transport
 - Discover and call tools interactively from the UI
@@ -224,7 +224,7 @@ pnpm --filter @hive-desktop/app test
 ## How It Works
 
 ### 1. Browse & Install Tools
-The app connects to the [Hive Market API](https://hivemarket.ai) to browse available MCP servers. Click "Install" to download and configure a server locally.
+The app connects to the [Hive Market API](https://hive-mcp.vercel.app) to browse available MCP servers. Click "Install" to download and configure a server locally.
 
 ### 2. Create a Workflow
 Either pick from 10 built-in templates or describe what you want:

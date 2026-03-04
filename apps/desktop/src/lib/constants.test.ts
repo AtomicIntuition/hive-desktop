@@ -15,6 +15,6 @@ describe("constants", () => {
   });
 
   it("HIVE_MARKET_URL is correct", () => {
-    expect(HIVE_MARKET_URL).toBe("https://hivemarket.ai");
+    expect(HIVE_MARKET_URL).toBe("https://hive-mcp.vercel.app");
   });
 });
