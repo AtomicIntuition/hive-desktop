@@ -193,7 +193,7 @@ These are popular MCP servers that can be installed from Hive Market:
 - stripe-mcp: Stripe payments (list-charges, list-customers, create-charge, etc.)
 - github-mcp: GitHub (list_issues, search_issues, create_issue, list_commits, etc.)
 - slack-mcp: Slack messaging (send-message, list-channels, etc.)
-- brave-search-mcp: Web search (brave_web_search)
+- brave-search-mcp: Web search (brave_web_search) — IMPORTANT: returns a PLAIN TEXT string (not JSON). Each result has "Title: ...\nDescription: ...\nURL: ...\n\n" format. To extract titles use: searchResults.split("\\n").filter(line => line.startsWith("Title: ")).map((line, i) => (i + 1) + ". " + line.replace("Title: ", "")).join("\\n")
 - supabase-mcp: Supabase database (list_projects, execute_sql, etc.)
 - sentry-mcp: Error monitoring (list-issues, get-issue-details, etc.)
 - vercel-mcp: Deployments (list-deployments, get-deployment, etc.)
@@ -227,11 +227,14 @@ A workflow has:
 1. **mcp_call** — Call an MCP tool
    { "id": "unique-id", "name": "Step name", "type": "mcp_call", "server": "<server-slug>", "tool": "<tool-name>", "arguments": { ... }, "outputVar": "<var-name>", "onError": "stop"|"continue"|"retry" }
 
-2. **condition** — Evaluate a condition (false = skip remaining steps)
+2. **condition** — Evaluate a condition (false = skip ALL remaining steps in the workflow)
    { "id": "unique-id", "name": "Step name", "type": "condition", "condition": "<js-expression>", "outputVar": "<var-name>", "onError": "stop" }
+   IMPORTANT: Conditions do NOT support branching (no trueSteps/falseSteps/onTrue/onFalse). If the condition returns false, all subsequent steps are skipped. Design your workflow as a flat sequential pipeline.
 
 3. **transform** — Compute/transform data
-   { "id": "unique-id", "name": "Step name", "type": "transform", "condition": "<js-expression>", "outputVar": "<var-name>", "onError": "stop" }
+   { "id": "unique-id", "name": "Step name", "type": "transform", "expression": "<js-expression>", "outputVar": "<var-name>", "onError": "stop" }
+   NOTE: Use "expression" field (not "condition") for transform steps.
+   CRITICAL: Expressions are sandboxed — NO variable assignments (const/let/var x = ...), NO semicolons, NO IIFEs, NO try/catch. Write a single pure expression using chained methods (.map(), .filter(), .join(), .slice()), ternary (?:), template literals, and arrow callbacks (=> is allowed in callbacks). Good: searchResults.split("\\n").filter(line => line.startsWith("Title: ")).map((line, i) => (i+1) + ". " + line.replace("Title: ", "")).join("\\n")
 
 4. **delay** — Wait
    { "id": "unique-id", "name": "Step name", "type": "delay", "arguments": { "seconds": <number> }, "onError": "continue" }
@@ -259,6 +262,13 @@ Your workflow will be automatically audited. To pass quality checks:
 4. The workflow must produce user-visible output — include at least one notify step or a final transform that surfaces results.
 5. Use meaningful step IDs (e.g., "fetch-payments", "check-threshold"), not generic ones.
 
+## CRITICAL RULES
+- The "steps" array MUST be flat — NO nested steps. No trueSteps, falseSteps, onTrue, onFalse, or any branching.
+- All steps execute sequentially. A "condition" step that returns false skips ALL remaining steps.
+- Transform steps use "expression" (not "condition") for their JS expression.
+- ALL expressions (condition and transform) are sandboxed: NO assignments (=), NO semicolons, NO try/catch, NO IIFEs. Write single pure expressions only.
+- MCP tool outputs may be plain text strings, not JSON objects. Use .split(), .includes(), .startsWith() for text parsing.
+
 ## Guidelines
 - Set appropriate error handling: "retry" for network calls, "stop" for critical checks, "continue" for notifications
 - Use conditions to short-circuit when there's nothing to process
@@ -266,6 +276,30 @@ Your workflow will be automatically audited. To pass quality checks:
 - For intervals, use reasonable defaults (60s minimum, usually 300s+)
 - For cron, use standard expressions (e.g., "0 9 * * 1-5" for weekday mornings)
 - Keep workflows focused — 3-7 steps is ideal`;
+}
+
+/**
+ * Flatten nested branching steps into a sequential array.
+ * AI sometimes generates trueSteps/falseSteps/onTrue/onFalse — extract those inline.
+ */
+function flattenSteps(steps: Array<Record<string, unknown>>): Array<Record<string, unknown>> {
+  const flat: Array<Record<string, unknown>>[] = [];
+
+  for (const step of steps) {
+    // Strip branching properties and keep the condition step itself
+    const { trueSteps, falseSteps, onTrue, onFalse, ...cleanStep } = step;
+    flat.push([cleanStep]);
+
+    // Inline nested steps (true branch first, then false branch)
+    const branches = [trueSteps, onTrue, falseSteps, onFalse].filter(Boolean);
+    for (const branch of branches) {
+      if (Array.isArray(branch)) {
+        flat.push(flattenSteps(branch as Array<Record<string, unknown>>));
+      }
+    }
+  }
+
+  return flat.flat();
 }
 
 function parsePlanResponse(text: string, installedSlugs: string[]): Omit<WorkflowPlan, "qualityScore" | "auditSummary" | "iterationsUsed"> {
@@ -313,15 +347,19 @@ function parsePlanResponse(text: string, installedSlugs: string[]): Omit<Workflo
 
   const requiredServerSlugs = (parsed.requiredServers ?? []) as string[];
 
+  // Flatten any nested branching steps (trueSteps/falseSteps/onTrue/onFalse)
+  const rawSteps = parsed.steps as Array<Record<string, unknown>>;
+  const flatSteps = flattenSteps(rawSteps);
+
   return {
     name: parsed.name as string,
     description: (parsed.description as string) ?? "",
     trigger: parsed.trigger as WorkflowTrigger,
-    steps: (parsed.steps as WorkflowStep[]).map((step, i) => ({
+    steps: flatSteps.map((step, i) => ({
       ...step,
       id: step.id ?? `step-${i + 1}`,
       onError: step.onError ?? "stop",
-    })),
+    })) as WorkflowStep[],
     requiredServers: requiredServerSlugs.map((slug) => ({
       slug,
       name: slug.replace(/-mcp$/, "").replace(/-/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()),

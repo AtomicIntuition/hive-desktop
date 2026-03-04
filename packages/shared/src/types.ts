@@ -58,6 +58,8 @@ export interface WorkflowStep {
   tool?: string;
   arguments?: Record<string, unknown>;
   condition?: string;
+  /** Alias for condition — used by AI-generated transform steps */
+  expression?: string;
   outputVar?: string;
   onError: "stop" | "continue" | "retry";
   retryCount?: number;

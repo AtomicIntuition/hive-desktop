@@ -88,9 +88,33 @@ class McpManager extends EventEmitter {
     return this.start(serverId);
   }
 
-  /** Get a managed server instance */
+  /** Get a managed server instance by ID */
   get(serverId: string): ManagedServer | undefined {
     return this.servers.get(serverId);
+  }
+
+  /** Get a managed server by slug (searches running servers, then DB) */
+  getBySlug(slug: string): ManagedServer | undefined {
+    for (const server of this.servers.values()) {
+      if (server.slug === slug) return server;
+    }
+    return undefined;
+  }
+
+  /** Resolve a server reference (could be DB id or slug) to a DB id */
+  resolveId(serverRef: string): string | null {
+    // Direct ID match in running servers
+    if (this.servers.has(serverRef)) return serverRef;
+    // Slug match in running servers
+    for (const server of this.servers.values()) {
+      if (server.slug === serverRef) return server.id;
+    }
+    // DB lookup by id first, then slug
+    const db = getDb();
+    const byId = db.prepare("SELECT id FROM servers WHERE id = ?").get(serverRef) as { id: string } | undefined;
+    if (byId) return byId.id;
+    const bySlug = db.prepare("SELECT id FROM servers WHERE slug = ?").get(serverRef) as { id: string } | undefined;
+    return bySlug?.id ?? null;
   }
 
   /** Get logs for a server */

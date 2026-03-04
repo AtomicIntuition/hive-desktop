@@ -16,6 +16,7 @@ vi.mock("@/lib/runtime-client", () => ({
   listServers: vi.fn().mockResolvedValue([]),
   listServerTools: vi.fn().mockResolvedValue({ tools: [] }),
   getMarketTool: vi.fn().mockRejectedValue(new Error("not found")),
+  listCredentials: vi.fn().mockResolvedValue([]),
 }));
 
 vi.mock("@/hooks/use-websocket-editor", () => ({

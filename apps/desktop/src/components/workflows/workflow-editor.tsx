@@ -10,6 +10,7 @@ import {
   auditWorkflow,
   getMarketTool,
   modifyWorkflow,
+  listCredentials,
 } from "@/lib/runtime-client";
 import type { Workflow, WorkflowTrigger } from "@hive-desktop/shared";
 import { StepEditorPanel } from "./step-editor";
@@ -30,6 +31,8 @@ import {
   Loader2,
   AlertCircle,
   Check,
+  CheckCircle,
+  XCircle,
   Key,
   Sparkles,
   Send,
@@ -82,6 +85,7 @@ export function WorkflowEditor({ workflowId, onBack }: WorkflowEditorProps) {
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [discardConfirmOpen, setDiscardConfirmOpen] = useState(false);
   const [envVars, setEnvVars] = useState<Array<{ name: string; description: string; server: string; required: boolean }>>([]);
+  const [vaultKeys, setVaultKeys] = useState<Set<string>>(new Set());
   const [aiPrompt, setAiPrompt] = useState("");
   const [aiModifying, setAiModifying] = useState(false);
   const [aiChanges, setAiChanges] = useState<string[] | null>(null);
@@ -138,6 +142,17 @@ export function WorkflowEditor({ workflowId, onBack }: WorkflowEditorProps) {
     };
 
     fetchEnvVars();
+    return () => { cancelled = true; };
+  }, [serverSlugs.join(",")]);
+
+  // Fetch vault credentials to cross-reference with env vars
+  useEffect(() => {
+    let cancelled = false;
+    listCredentials()
+      .then((creds) => {
+        if (!cancelled) setVaultKeys(new Set(creds.map((c) => c.name)));
+      })
+      .catch(() => {});
     return () => { cancelled = true; };
   }, [serverSlugs.join(",")]);
 
@@ -332,9 +347,9 @@ export function WorkflowEditor({ workflowId, onBack }: WorkflowEditorProps) {
   const triggerLabel = formatTriggerLabel(trigger);
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="overflow-x-hidden">
       {/* Compact Header */}
-      <div className="mb-3 flex items-center gap-2 sm:gap-3 shrink-0">
+      <div className="mb-3 flex items-center gap-2 sm:gap-3">
         <button
           onClick={handleBack}
           className="rounded-lg p-1.5 text-gray-400 hover:bg-white/[0.04] hover:text-gray-200 shrink-0"
@@ -364,7 +379,7 @@ export function WorkflowEditor({ workflowId, onBack }: WorkflowEditorProps) {
       </div>
 
       {/* Collapsible config section (description, env vars, trigger) */}
-      <div className="shrink-0 mb-2">
+      <div className="mb-2">
         <button
           onClick={() => setConfigCollapsed(!configCollapsed)}
           className="flex items-center gap-1.5 text-xs text-gray-500 hover:text-gray-300 mb-2"
@@ -375,9 +390,15 @@ export function WorkflowEditor({ workflowId, onBack }: WorkflowEditorProps) {
             <ChevronDown className="h-3 w-3" />
           )}
           Configuration
-          {envVars.length > 0 && (
-            <span className="text-amber-400">({envVars.length} env vars)</span>
-          )}
+          {envVars.length > 0 && (() => {
+            const configuredCount = envVars.filter((v) => vaultKeys.has(v.name)).length;
+            const allConfigured = configuredCount === envVars.length;
+            return (
+              <span className={allConfigured ? "text-emerald-400" : "text-amber-400"}>
+                ({configuredCount}/{envVars.length} keys configured)
+              </span>
+            );
+          })()}
         </button>
 
         {!configCollapsed && (
@@ -392,27 +413,51 @@ export function WorkflowEditor({ workflowId, onBack }: WorkflowEditorProps) {
             />
 
             {/* Required env vars banner */}
-            {envVars.length > 0 && (
-              <div className="rounded-lg border border-amber-500/20 bg-amber-500/[0.03] px-3 py-2.5">
-                <div className="flex items-center gap-2 mb-1.5">
-                  <Key className="h-3.5 w-3.5 text-amber-400" />
-                  <span className="text-xs font-medium text-amber-300">Required API Keys</span>
-                  <span className="text-[10px] text-gray-500">Add in Vault before running</span>
+            {envVars.length > 0 && (() => {
+              const configuredCount = envVars.filter((v) => vaultKeys.has(v.name)).length;
+              const allConfigured = configuredCount === envVars.length;
+              return (
+                <div className={cn(
+                  "rounded-lg border px-3 py-2.5",
+                  allConfigured
+                    ? "border-emerald-500/20 bg-emerald-500/[0.03]"
+                    : "border-amber-500/20 bg-amber-500/[0.03]"
+                )}>
+                  <div className="flex items-center gap-2 mb-1.5">
+                    <Key className={cn("h-3.5 w-3.5", allConfigured ? "text-emerald-400" : "text-amber-400")} />
+                    <span className={cn("text-xs font-medium", allConfigured ? "text-emerald-300" : "text-amber-300")}>
+                      Required API Keys
+                    </span>
+                    <span className={cn("text-[10px]", allConfigured ? "text-emerald-500" : "text-gray-500")}>
+                      {configuredCount} of {envVars.length} configured
+                    </span>
+                  </div>
+                  <div className="space-y-1">
+                    {envVars.map((v) => {
+                      const inVault = vaultKeys.has(v.name);
+                      return (
+                        <div key={`${v.server}-${v.name}`} className="flex items-center gap-2">
+                          {inVault ? (
+                            <CheckCircle className="h-3.5 w-3.5 text-emerald-400 shrink-0" />
+                          ) : (
+                            <XCircle className="h-3.5 w-3.5 text-red-400 shrink-0" />
+                          )}
+                          <code className={cn(
+                            "rounded bg-gray-800/50 px-1.5 py-0.5 font-mono text-[11px]",
+                            inVault ? "text-emerald-300" : "text-amber-300"
+                          )}>{v.name}</code>
+                          <span className="flex-1 text-[11px] text-gray-500 truncate">{v.description}</span>
+                          <span className="text-[10px] text-gray-600 font-mono shrink-0">{v.server}</span>
+                          {!inVault && v.required && (
+                            <span className="rounded-full bg-red-500/10 px-1.5 py-0.5 text-[10px] text-red-400 shrink-0">missing</span>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
-                <div className="space-y-1">
-                  {envVars.map((v) => (
-                    <div key={`${v.server}-${v.name}`} className="flex items-center gap-2">
-                      <code className="rounded bg-gray-800/50 px-1.5 py-0.5 font-mono text-[11px] text-amber-300">{v.name}</code>
-                      <span className="flex-1 text-[11px] text-gray-500 truncate">{v.description}</span>
-                      <span className="text-[10px] text-gray-600 font-mono shrink-0">{v.server}</span>
-                      {v.required && (
-                        <span className="rounded-full bg-red-500/10 px-1.5 py-0.5 text-[10px] text-red-400 shrink-0">required</span>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
+              );
+            })()}
 
             {/* Trigger editor */}
             <TriggerEditor trigger={trigger} onChange={setTrigger} />
@@ -421,7 +466,7 @@ export function WorkflowEditor({ workflowId, onBack }: WorkflowEditorProps) {
       </div>
 
       {/* Compact Toolbar */}
-      <div className="mb-3 flex items-center gap-1 flex-wrap shrink-0">
+      <div className="mb-3 flex items-center gap-1 flex-wrap">
         <button
           onClick={handleSave}
           disabled={!dirty || saving}
@@ -510,7 +555,7 @@ export function WorkflowEditor({ workflowId, onBack }: WorkflowEditorProps) {
       </div>
 
       {/* AI Modify Prompt */}
-      <div className="mb-3 rounded-lg border border-white/[0.06] bg-gray-900/60 backdrop-blur-sm overflow-hidden shrink-0">
+      <div className="mb-3 rounded-lg border border-white/[0.06] bg-gray-900/60 backdrop-blur-sm overflow-hidden">
         <div className="flex items-center gap-2 px-3 py-1.5">
           <Sparkles className="h-3.5 w-3.5 text-violet-400 shrink-0" />
           <input
@@ -548,7 +593,7 @@ export function WorkflowEditor({ workflowId, onBack }: WorkflowEditorProps) {
 
       {/* Error */}
       {error && (
-        <div className="mb-3 rounded-lg border border-red-500/20 bg-red-500/[0.06] px-3 py-2 shrink-0">
+        <div className="mb-3 rounded-lg border border-red-500/20 bg-red-500/[0.06] px-3 py-2">
           <div className="flex items-center gap-2 text-sm text-red-400">
             <AlertCircle className="h-3.5 w-3.5 shrink-0" />
             <span className="truncate">{error}</span>
@@ -560,10 +605,10 @@ export function WorkflowEditor({ workflowId, onBack }: WorkflowEditorProps) {
       )}
 
       {/* Live Run Overlay */}
-      {activeRun && <div className="mb-3 shrink-0"><LiveRunOverlay /></div>}
+      {activeRun && <div className="mb-3"><LiveRunOverlay /></div>}
 
       {/* Tab bar */}
-      <div className="mb-3 flex gap-1 rounded-lg bg-gray-900/60 backdrop-blur-sm p-1 border border-white/[0.06] w-full sm:w-fit shrink-0">
+      <div className="mb-3 flex gap-1 rounded-lg bg-gray-900/60 backdrop-blur-sm p-1 border border-white/[0.06] w-full sm:w-fit">
         {(["editor", "runs", "json"] as const).map((tab) => (
           <button
             key={tab}
@@ -582,14 +627,14 @@ export function WorkflowEditor({ workflowId, onBack }: WorkflowEditorProps) {
         ))}
       </div>
 
-      {/* Tab content — fills remaining vertical space */}
-      <div className="flex-1 min-h-0 overflow-y-auto">
+      {/* Tab content */}
+      <div>
         {activeTab === "editor" && (
           <div className="flex flex-col lg:flex-row gap-4">
             <div className="flex-1 min-w-0">
               <StepEditorPanel />
             </div>
-            <div className="lg:w-[320px] shrink-0 space-y-4">
+            <div className="lg:w-80 min-w-0 space-y-4 lg:sticky lg:top-0 lg:self-start">
               <FlowDiagram
                 steps={steps}
                 activeRun={activeRun}

@@ -37,7 +37,7 @@ export function StepEditorPanel() {
       const defaults: Record<string, Partial<WorkflowStep>> = {
         mcp_call: { name: "New MCP Call", server: "", tool: "", arguments: {}, outputVar: "", onError: "stop" },
         condition: { name: "New Condition", condition: "", outputVar: "", onError: "stop" },
-        transform: { name: "New Transform", condition: "", outputVar: "", onError: "stop" },
+        transform: { name: "New Transform", expression: "", condition: "", outputVar: "", onError: "stop" },
         delay: { name: "Wait", arguments: { seconds: 5 }, onError: "continue" },
         notify: { name: "Notification", arguments: { title: "", message: "" }, onError: "continue" },
       };
@@ -546,12 +546,13 @@ function ConditionEditor({ step }: { step: WorkflowStep }) {
 
 function TransformEditor({ step }: { step: WorkflowStep }) {
   const updateStep = useWorkflowEditorStore((s) => s.updateStep);
+  const value = step.expression ?? step.condition ?? "";
 
   return (
     <FieldRow label="Expression">
       <textarea
-        value={step.condition ?? ""}
-        onChange={(e) => updateStep(step.id, { condition: e.target.value })}
+        value={value}
+        onChange={(e) => updateStep(step.id, { expression: e.target.value, condition: e.target.value })}
         rows={3}
         placeholder='e.g., results.map(r => r.title).join(", ")'
         className="w-full rounded-lg border border-white/[0.06] bg-gray-800/50 px-3 py-2 font-mono text-sm text-gray-200 outline-none focus:border-violet-500/50 resize-none placeholder-gray-600"

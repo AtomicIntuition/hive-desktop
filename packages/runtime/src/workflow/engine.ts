@@ -106,11 +106,17 @@ async function executeMcpCall(
   const resolvedArgs = rawArgs ? context.resolve(rawArgs) : {};
 
   try {
+    // Resolve server slug/id to a DB id
+    const resolvedServerId = mcpManager.resolveId(server);
+    if (!resolvedServerId) {
+      return { success: false, error: `Server ${server} is not installed` };
+    }
+
     // Ensure server is running and connected
-    await ensureServerReady(server);
+    await ensureServerReady(resolvedServerId);
 
     // Call the tool
-    const result: McpToolCallResult = await callTool(server, tool, resolvedArgs as Record<string, unknown>);
+    const result: McpToolCallResult = await callTool(resolvedServerId, tool, resolvedArgs as Record<string, unknown>);
 
     if (result.isError) {
       const errorText = result.content
@@ -146,22 +152,29 @@ async function executeMcpCall(
 }
 
 async function ensureServerReady(serverId: string): Promise<void> {
-  const managed = mcpManager.get(serverId);
-
-  if (!managed) {
+  // Resolve slug or ID to a managed server
+  const resolvedId = mcpManager.resolveId(serverId);
+  if (!resolvedId) {
     throw new Error(`Server ${serverId} is not installed`);
+  }
+
+  const managed = mcpManager.get(resolvedId);
+  if (!managed) {
+    // Server exists in DB but not yet managed — start it
+    await mcpManager.start(resolvedId);
+    return ensureServerReady(resolvedId);
   }
 
   // Start if stopped
   if (managed.status === "stopped" || managed.status === "error") {
-    await mcpManager.start(serverId);
+    await mcpManager.start(resolvedId);
     // Wait a bit for process to stabilize
     await sleep(1000);
   }
 
   // Connect if not connected
-  if (!isConnected(serverId)) {
-    await connectToServer(serverId);
+  if (!isConnected(resolvedId)) {
+    await connectToServer(resolvedId);
   }
 }
 
@@ -199,10 +212,10 @@ async function executeTransform(
   step: WorkflowStep,
   context: WorkflowContext
 ): Promise<StepResult> {
-  const { condition: expression } = step;
+  const expression = step.expression ?? step.condition;
 
   if (!expression) {
-    return { success: false, error: "transform step requires a 'condition' field with the JS expression" };
+    return { success: false, error: "transform step requires an 'expression' (or 'condition') field with the JS expression" };
   }
 
   try {
