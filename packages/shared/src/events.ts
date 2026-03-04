@@ -1,4 +1,4 @@
-import type { McpServer, McpTool, Workflow, WorkflowRun } from "./types.js";
+import type { McpServer, McpTool, Workflow, WorkflowRun, WorkflowRunStepDetail } from "./types.js";
 
 // ── WebSocket Events ───────────────────────────────────
 
@@ -11,6 +11,7 @@ export type ServerEvent =
   | { type: "workflow:status"; data: { id: string; status: Workflow["status"] } }
   | { type: "workflow:run:start"; data: { run: WorkflowRun } }
   | { type: "workflow:run:step"; data: { runId: string; stepIndex: number; status: "running" | "completed" | "failed" } }
+  | { type: "workflow:run:step:detail"; data: WorkflowRunStepDetail }
   | { type: "workflow:run:complete"; data: { run: WorkflowRun } }
   | { type: "runtime:ready"; data: { port: number } }
   | { type: "runtime:error"; data: { message: string } };

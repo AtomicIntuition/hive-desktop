@@ -26,6 +26,7 @@ export function useWebSocket() {
         case "server:removed":
         case "workflow:run:start":
         case "workflow:run:step":
+        case "workflow:run:step:detail":
         case "workflow:run:complete":
           // These events can trigger UI updates via polling or dedicated handlers
           break;

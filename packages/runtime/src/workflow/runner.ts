@@ -68,12 +68,25 @@ export async function runWorkflow(workflow: Workflow): Promise<WorkflowRun> {
 
       const step = workflow.steps[i];
 
+      const stepStartedAt = new Date().toISOString();
+
       // Broadcast step start
       broadcast({
         type: "workflow:run:step",
         data: { runId, stepIndex: i, status: "running" },
       });
+      broadcast({
+        type: "workflow:run:step:detail",
+        data: {
+          runId,
+          stepIndex: i,
+          stepId: step.id,
+          status: "running",
+          startedAt: stepStartedAt,
+        },
+      });
 
+      const stepStartMs = Date.now();
       let result: StepResult;
 
       try {
@@ -81,6 +94,9 @@ export async function runWorkflow(workflow: Workflow): Promise<WorkflowRun> {
       } catch (err) {
         result = { success: false, error: (err as Error).message };
       }
+
+      const durationMs = Date.now() - stepStartMs;
+      const stepCompletedAt = new Date().toISOString();
 
       // Record the step result
       context.recordStep(step.id, result.output, result.error);
@@ -91,6 +107,19 @@ export async function runWorkflow(workflow: Workflow): Promise<WorkflowRun> {
           type: "workflow:run:step",
           data: { runId, stepIndex: i, status: "completed" },
         });
+        broadcast({
+          type: "workflow:run:step:detail",
+          data: {
+            runId,
+            stepIndex: i,
+            stepId: step.id,
+            status: "completed",
+            output: result.output,
+            durationMs,
+            startedAt: stepStartedAt,
+            completedAt: stepCompletedAt,
+          },
+        });
 
         // Condition steps can skip remaining steps
         if (step.type === "condition" && result.skipped) {
@@ -100,6 +129,19 @@ export async function runWorkflow(workflow: Workflow): Promise<WorkflowRun> {
         broadcast({
           type: "workflow:run:step",
           data: { runId, stepIndex: i, status: "failed" },
+        });
+        broadcast({
+          type: "workflow:run:step:detail",
+          data: {
+            runId,
+            stepIndex: i,
+            stepId: step.id,
+            status: "failed",
+            error: result.error,
+            durationMs,
+            startedAt: stepStartedAt,
+            completedAt: stepCompletedAt,
+          },
         });
 
         switch (step.onError) {

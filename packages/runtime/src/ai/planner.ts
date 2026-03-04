@@ -128,15 +128,11 @@ A workflow has:
 - Template strings resolve in step arguments: "Found {{count}} items"
 
 ## Output Format
-Respond with ONLY a JSON object (no markdown, no code blocks, no extra text):
-{
-  "name": "Workflow Name",
-  "description": "What this workflow does",
-  "trigger": { ... },
-  "steps": [ ... ],
-  "requiredServers": ["server-slug-1", "server-slug-2"],
-  "reasoning": "Brief explanation of your design choices"
-}
+You MUST respond with ONLY valid JSON. No markdown fences, no code blocks, no backticks, no prose before or after.
+Every string value MUST use double quotes ("). Never use backticks (\`) or single quotes (') for JSON string values.
+
+Example structure:
+{"name":"Workflow Name","description":"What this workflow does","trigger":{...},"steps":[...],"requiredServers":["server-slug-1","server-slug-2"],"reasoning":"Brief explanation of your design choices"}
 
 ## Guidelines
 - Use meaningful step IDs (e.g., "fetch-payments", "check-threshold")
@@ -153,12 +149,12 @@ function parsePlanResponse(text: string, installedSlugs: string[]): WorkflowPlan
   // Try to extract JSON from the response
   let json: string;
 
-  // Check for JSON code block
+  // Strip markdown code fences if present
   const codeBlockMatch = text.match(/```(?:json)?\s*\n?([\s\S]*?)\n?```/);
   if (codeBlockMatch) {
     json = codeBlockMatch[1].trim();
   } else {
-    // Try to find raw JSON object
+    // Try to find raw JSON object (use non-greedy match from first { to balanced })
     const jsonMatch = text.match(/\{[\s\S]*\}/);
     if (jsonMatch) {
       json = jsonMatch[0];
@@ -170,8 +166,21 @@ function parsePlanResponse(text: string, installedSlugs: string[]): WorkflowPlan
   let parsed: Record<string, unknown>;
   try {
     parsed = JSON.parse(json);
-  } catch (err) {
-    throw new Error(`Invalid JSON in AI response: ${(err as Error).message}`);
+  } catch {
+    // Claude sometimes uses backtick-quoted strings instead of double-quoted.
+    // Replace backtick-delimited values with double-quoted values:
+    // Pattern: a colon/comma/[ followed by optional whitespace then `...`
+    const sanitized = json.replace(/(?<=[:,\[]\s*)`([^`]*)`/g, (_m, inner) => {
+      // Escape any unescaped double quotes inside the value
+      const escaped = inner.replace(/(?<!\\)"/g, '\\"');
+      return `"${escaped}"`;
+    });
+
+    try {
+      parsed = JSON.parse(sanitized);
+    } catch (err2) {
+      throw new Error(`Invalid JSON in AI response: ${(err2 as Error).message}`);
+    }
   }
 
   // Validate required fields

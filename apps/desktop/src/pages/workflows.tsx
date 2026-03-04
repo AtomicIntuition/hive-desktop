@@ -2,7 +2,7 @@ import { useState, useCallback } from "react";
 import { cn } from "@/lib/utils";
 import { WorkflowCreator } from "@/components/workflows/workflow-creator";
 import { WorkflowList } from "@/components/workflows/workflow-list";
-import { WorkflowDetail } from "@/components/workflows/workflow-detail";
+import { WorkflowEditor } from "@/components/workflows/workflow-editor";
 import { WorkflowTemplates } from "@/components/workflows/workflow-templates";
 import { useWorkflows } from "@/hooks/use-workflows";
 import { LayoutList, LayoutTemplate } from "lucide-react";
@@ -17,14 +17,14 @@ export function WorkflowsPage() {
     refresh();
   }, [refresh]);
 
-  // Detail view
+  // Editor view (replaces the old read-only WorkflowDetail)
   if (selectedId) {
-    return <WorkflowDetail workflowId={selectedId} onBack={handleBack} />;
+    return <WorkflowEditor workflowId={selectedId} onBack={handleBack} />;
   }
 
   return (
     <div className="space-y-6">
-      <WorkflowCreator />
+      <WorkflowCreator onCreated={(id) => setSelectedId(id)} />
 
       {/* Tabs */}
       <div className="flex gap-1 rounded-lg bg-gray-900/50 p-1 border border-white/[0.06] w-fit">

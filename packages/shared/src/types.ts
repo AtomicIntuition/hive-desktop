@@ -77,6 +77,36 @@ export interface WorkflowRun {
   stepsExecuted: number;
 }
 
+// ── Workflow Run Step Detail ───────────────────────────
+
+export interface WorkflowRunStepDetail {
+  runId: string;
+  stepIndex: number;
+  stepId: string;
+  status: "running" | "completed" | "failed";
+  output?: unknown;
+  error?: string;
+  durationMs?: number;
+  startedAt: string;
+  completedAt?: string;
+}
+
+// ── Workflow Audit ────────────────────────────────────
+
+export interface WorkflowAuditResult {
+  score: number;
+  summary: string;
+  issues: WorkflowAuditItem[];
+  suggestions: WorkflowAuditItem[];
+}
+
+export interface WorkflowAuditItem {
+  severity: "error" | "warning" | "info";
+  message: string;
+  stepIndex?: number;
+  stepId?: string;
+}
+
 // ── Vault / Credentials ────────────────────────────────
 
 export interface Credential {

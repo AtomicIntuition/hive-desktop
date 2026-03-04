@@ -5,6 +5,7 @@ import type {
   McpToolCallResult,
   Workflow,
   WorkflowRun,
+  WorkflowAuditResult,
   Credential,
   MarketTool,
   MarketCategory,
@@ -286,5 +287,17 @@ export async function confirmWorkflowPlan(plan: WorkflowPlan): Promise<Workflow>
   return request("/api/ai/confirm-workflow", {
     method: "POST",
     body: JSON.stringify(plan),
+  });
+}
+
+export async function auditWorkflow(workflow: {
+  name: string;
+  description: string;
+  trigger: unknown;
+  steps: unknown[];
+}): Promise<WorkflowAuditResult> {
+  return request("/api/ai/audit-workflow", {
+    method: "POST",
+    body: JSON.stringify({ workflow }),
   });
 }

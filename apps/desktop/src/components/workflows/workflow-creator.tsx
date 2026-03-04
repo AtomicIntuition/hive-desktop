@@ -22,7 +22,11 @@ import {
 import type { ServerEnvVar } from "@hive-desktop/shared";
 import { useWorkflows } from "@/hooks/use-workflows";
 
-export function WorkflowCreator() {
+interface WorkflowCreatorProps {
+  onCreated?: (id: string) => void;
+}
+
+export function WorkflowCreator({ onCreated }: WorkflowCreatorProps) {
   const [input, setInput] = useState("");
   const [focused, setFocused] = useState(false);
   const [planning, setPlanning] = useState(false);
@@ -67,15 +71,25 @@ export function WorkflowCreator() {
     if (!plan) return;
     setConfirming(true);
     try {
-      await confirmWorkflowPlan(plan);
+      const workflow = await confirmWorkflowPlan(plan);
       setConfirmed(true);
       refresh();
-      // Reset after a delay
-      setTimeout(() => {
-        setPlan(null);
-        setInput("");
-        setConfirmed(false);
-      }, 2000);
+
+      // Navigate to editor if callback provided
+      if (onCreated) {
+        setTimeout(() => {
+          onCreated(workflow.id);
+          setPlan(null);
+          setInput("");
+          setConfirmed(false);
+        }, 500);
+      } else {
+        setTimeout(() => {
+          setPlan(null);
+          setInput("");
+          setConfirmed(false);
+        }, 2000);
+      }
     } catch (err) {
       setError((err as Error).message);
     } finally {
