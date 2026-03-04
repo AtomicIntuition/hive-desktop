@@ -48,7 +48,8 @@
     "copyright": "Copyright 2026 Hive",
     "macOS": {
       "minimumSystemVersion": "10.15"
-    }
+    },
+    "createUpdaterArtifacts": true
   },
   "plugins": {
     "updater": {
