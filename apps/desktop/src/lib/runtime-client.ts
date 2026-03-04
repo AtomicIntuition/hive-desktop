@@ -14,8 +14,13 @@ import type {
 } from "@hive-desktop/shared";
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
+  const headers: Record<string, string> = {};
+  // Only set Content-Type when there's a body — Fastify rejects empty JSON bodies
+  if (options?.body) {
+    headers["Content-Type"] = "application/json";
+  }
   const res = await fetch(`${RUNTIME_URL}${path}`, {
-    headers: { "Content-Type": "application/json" },
+    headers,
     ...options,
   });
   if (!res.ok) {
