@@ -22,7 +22,14 @@ await build({
   ],
   // Mark all node built-ins as external
   banner: {
-    js: `import { createRequire } from 'node:module'; const require = createRequire(import.meta.url);`,
+    js: [
+      `import { createRequire as __createRequire } from 'node:module';`,
+      `import { fileURLToPath as __fileURLToPath } from 'node:url';`,
+      `import { dirname as __dirname_fn } from 'node:path';`,
+      `const require = __createRequire(import.meta.url);`,
+      `const __filename = __fileURLToPath(import.meta.url);`,
+      `const __dirname = __dirname_fn(__filename);`,
+    ].join(" "),
   },
   minify: false, // Keep readable for debugging
   sourcemap: true,

@@ -9,6 +9,34 @@ use tauri_plugin_shell::process::CommandChild;
 // Store the runtime child process so we can kill it on exit
 static RUNTIME_CHILD: Mutex<Option<CommandChild>> = Mutex::new(None);
 
+/// Find node binary — Finder-launched apps have a minimal PATH
+fn find_node() -> Option<String> {
+    let candidates = [
+        "/usr/local/bin/node",
+        "/opt/homebrew/bin/node",
+        "/usr/bin/node",
+    ];
+    for path in &candidates {
+        if std::path::Path::new(path).exists() {
+            return Some(path.to_string());
+        }
+    }
+    // Check HOME-relative paths (nvm, fnm, etc.)
+    if let Ok(home) = std::env::var("HOME") {
+        let home_candidates = [
+            format!("{home}/.nvm/current/bin/node"),
+            format!("{home}/.local/share/fnm/aliases/default/bin/node"),
+            format!("{home}/.local/bin/node"),
+        ];
+        for path in &home_candidates {
+            if std::path::Path::new(path).exists() {
+                return Some(path.clone());
+            }
+        }
+    }
+    None
+}
+
 fn spawn_runtime(app: &tauri::App) {
     // Resolve the bundled runtime script from Tauri resources
     let resource_path = app
@@ -23,6 +51,19 @@ fn spawn_runtime(app: &tauri::App) {
         return;
     }
 
+    // Find node binary
+    let node_path = match find_node() {
+        Some(p) => {
+            println!("[tauri] Found node at: {p}");
+            p
+        }
+        None => {
+            println!("[tauri] Node.js not found. Tried common paths.");
+            println!("[tauri] Install Node.js v22+ and restart the app.");
+            return;
+        }
+    };
+
     // Get app data dir for the database
     let data_dir = app
         .path()
@@ -35,11 +76,24 @@ fn spawn_runtime(app: &tauri::App) {
     let script_path = resource_path.to_string_lossy().to_string();
     let data_path = data_dir.to_string_lossy().to_string();
 
+    // Build PATH that includes the node binary's parent dir (for npx/npm)
+    let node_dir = std::path::Path::new(&node_path)
+        .parent()
+        .map(|p| p.to_string_lossy().to_string())
+        .unwrap_or_default();
+    let system_path = std::env::var("PATH").unwrap_or_default();
+    let full_path = if system_path.is_empty() {
+        format!("{node_dir}:/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin")
+    } else {
+        format!("{node_dir}:{system_path}")
+    };
+
     let shell = app.handle().shell();
     let result = shell
-        .command("node")
+        .command(&node_path)
         .args(["--no-warnings", &script_path])
         .env("HIVE_DATA_DIR", &data_path)
+        .env("PATH", &full_path)
         .spawn();
 
     match result {
@@ -51,8 +105,8 @@ fn spawn_runtime(app: &tauri::App) {
         }
         Err(e) => {
             println!("[tauri] Could not spawn runtime: {e}");
-            println!("[tauri] Make sure Node.js (v22+) is installed and in your PATH");
-            println!("[tauri] Or start manually with: pnpm dev:runtime");
+            println!("[tauri] Node path: {node_path}");
+            println!("[tauri] Script path: {script_path}");
         }
     }
 }
