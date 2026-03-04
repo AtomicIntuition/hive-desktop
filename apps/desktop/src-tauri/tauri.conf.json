@@ -53,9 +53,9 @@
   "plugins": {
     "updater": {
       "endpoints": [
-        "https://releases.hive.ai/desktop/{{target}}/{{arch}}/{{current_version}}"
+        "https://github.com/AtomicIntuition/hive-desktop/releases/latest/download/latest.json"
       ],
-      "pubkey": ""
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDdDNkE2MzI4MUNDQjVDRjkKUldUNVhNc2NLR05xZkFhemdwcWpLZjZwSWpyTUVJWFcyZXFSVFlYbTQ5TzVJOGNjMHNtTXBoOTEK"
     }
   }
 }
