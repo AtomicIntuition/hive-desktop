@@ -22,11 +22,10 @@ pub fn run() {
                 .spawn();
 
             match result {
-                Ok(child) => {
+                Ok((_rx, child)) => {
                     println!("[tauri] Runtime server spawned (pid: {})", child.pid());
                 }
                 Err(e) => {
-                    // Try npx as fallback
                     println!("[tauri] Could not spawn runtime via node: {e}");
                     println!("[tauri] Runtime server not auto-started — start manually with: pnpm dev:runtime");
                 }
