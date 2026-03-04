@@ -264,6 +264,32 @@ describe("WorkflowEditor", () => {
     });
   });
 
+  it("shows Dice reimagine button", async () => {
+    mockGetWorkflow.mockResolvedValue(testWorkflow);
+    render(<WorkflowEditor workflowId="wf-1" onBack={onBack} />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Dice")).toBeDefined();
+    });
+  });
+
+  it("Dice button shows held count badge when steps are held", async () => {
+    mockGetWorkflow.mockResolvedValue(testWorkflow);
+    render(<WorkflowEditor workflowId="wf-1" onBack={onBack} />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Dice")).toBeDefined();
+    });
+
+    // Hold a step
+    useWorkflowEditorStore.getState().toggleHeld("s1");
+
+    // Re-render to pick up state change
+    await waitFor(() => {
+      expect(screen.getByText("1")).toBeDefined();
+    });
+  });
+
   it("calls modifyWorkflow when submitting AI prompt", async () => {
     mockGetWorkflow.mockResolvedValue(testWorkflow);
     mockModifyWorkflow.mockResolvedValue({

@@ -1,11 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { AuditModal } from "./audit-modal";
 import { useWorkflowEditorStore } from "@/stores/workflow-editor-store";
 
 vi.mock("@/lib/runtime-client", () => ({
   fixWorkflow: vi.fn(),
   auditWorkflow: vi.fn(),
+  updateWorkflow: vi.fn(),
 }));
 
 describe("AuditModal", () => {
@@ -148,6 +149,55 @@ describe("AuditModal", () => {
 
     render(<AuditModal />);
     expect(screen.queryByText("Fix Issues")).toBeNull();
+  });
+
+  it("fix calls updateWorkflow to auto-save", async () => {
+    const { fixWorkflow, auditWorkflow, updateWorkflow } = await import("@/lib/runtime-client");
+    const mockFix = vi.mocked(fixWorkflow);
+    const mockAudit = vi.mocked(auditWorkflow);
+    const mockUpdate = vi.mocked(updateWorkflow);
+
+    mockFix.mockResolvedValue({
+      name: "Test",
+      description: "",
+      trigger: { type: "manual" },
+      steps: [{ id: "s1", name: "Fixed Step", type: "mcp_call", server: "test", tool: "test", onError: "stop" }],
+      changes: ["Fixed step"],
+    });
+    mockAudit.mockResolvedValue({
+      score: 90,
+      summary: "Better now.",
+      issues: [],
+      suggestions: [],
+    });
+    mockUpdate.mockResolvedValue({
+      id: "wf-1",
+      name: "Test",
+      description: "",
+      status: "draft",
+      trigger: { type: "manual" },
+      steps: [{ id: "s1", name: "Fixed Step", type: "mcp_call", server: "test", tool: "test", onError: "stop" }],
+      createdAt: "",
+      updatedAt: "",
+      runCount: 0,
+      errorCount: 0,
+    });
+
+    useWorkflowEditorStore.getState().setAuditResult({
+      score: 50,
+      summary: "Issues found.",
+      issues: [{ severity: "warning", message: "Missing error handling" }],
+      suggestions: [],
+    });
+
+    render(<AuditModal />);
+    fireEvent.click(screen.getByText("Fix Issues"));
+
+    await waitFor(() => {
+      expect(mockUpdate).toHaveBeenCalledWith("wf-1", expect.objectContaining({
+        name: "Test",
+      }));
+    });
   });
 
   it("close button clears audit result", () => {

@@ -11,6 +11,8 @@ import {
   X,
   Plus,
   GripVertical,
+  Lock,
+  Unlock,
 } from "lucide-react";
 
 // ── Type Config ──────────────────────────────────────────
@@ -26,7 +28,7 @@ const TYPE_CONFIG: Record<string, { color: string; bg: string; label: string; sh
 // ── StepEditorPanel ─────────────────────────────────────
 
 export function StepEditorPanel() {
-  const { steps, addStep, reorderSteps, removeStep, expandedSteps, toggleStepExpanded, activeRun } =
+  const { steps, addStep, reorderSteps, removeStep, expandedSteps, toggleStepExpanded, activeRun, heldSteps, toggleHeld } =
     useWorkflowEditorStore();
   const [addMenuOpen, setAddMenuOpen] = useState(false);
 
@@ -59,6 +61,7 @@ export function StepEditorPanel() {
       {steps.map((step, index) => {
         const expanded = expandedSteps.has(step.id);
         const runStatus = activeRun?.stepStatuses.get(index)?.status;
+        const held = heldSteps.has(step.id);
 
         return (
           <StepCard
@@ -68,7 +71,9 @@ export function StepEditorPanel() {
             expanded={expanded}
             totalSteps={steps.length}
             runStatus={runStatus}
+            held={held}
             onToggle={() => toggleStepExpanded(step.id)}
+            onToggleHeld={() => toggleHeld(step.id)}
             onMoveUp={() => reorderSteps(index, index - 1)}
             onMoveDown={() => reorderSteps(index, index + 1)}
             onDelete={() => removeStep(step.id)}
@@ -116,7 +121,9 @@ interface StepCardProps {
   expanded: boolean;
   totalSteps: number;
   runStatus?: "running" | "completed" | "failed";
+  held: boolean;
   onToggle: () => void;
+  onToggleHeld: () => void;
   onMoveUp: () => void;
   onMoveDown: () => void;
   onDelete: () => void;
@@ -128,24 +135,27 @@ function StepCard({
   expanded,
   totalSteps,
   runStatus,
+  held,
   onToggle,
+  onToggleHeld,
   onMoveUp,
   onMoveDown,
   onDelete,
 }: StepCardProps) {
   const config = TYPE_CONFIG[step.type] ?? TYPE_CONFIG.mcp_call;
 
-  const runBorder =
+  const leftBorder =
     runStatus === "running" ? "border-l-violet-500 animate-pulse" :
     runStatus === "completed" ? "border-l-emerald-500" :
     runStatus === "failed" ? "border-l-red-500" :
+    held ? "border-l-amber-500/50" :
     "border-l-transparent";
 
   return (
     <div
       className={cn(
         "rounded-xl border border-white/[0.06] bg-gray-900/50 border-l-2 overflow-hidden",
-        runBorder
+        leftBorder
       )}
     >
       {/* Collapsed header */}
@@ -179,8 +189,18 @@ function StepCard({
           <span className="hidden sm:inline text-[10px] text-gray-600 shrink-0">retry({step.retryCount})</span>
         )}
 
-        {/* Reorder / delete buttons — min 44px touch targets on mobile */}
+        {/* Hold / Reorder / delete buttons — min 44px touch targets on mobile */}
         <div className="flex items-center gap-0 sm:gap-0.5 ml-0.5 sm:ml-1 shrink-0" onClick={(e) => e.stopPropagation()}>
+          <button
+            onClick={onToggleHeld}
+            className={cn(
+              "rounded p-2 sm:p-1 transition-colors",
+              held ? "text-amber-400 hover:text-amber-300" : "text-gray-600 hover:text-gray-300"
+            )}
+            title={held ? "Unhold step" : "Hold step"}
+          >
+            {held ? <Lock className="h-3.5 w-3.5" /> : <Unlock className="h-3.5 w-3.5" />}
+          </button>
           <button
             onClick={onMoveUp}
             disabled={index === 0}

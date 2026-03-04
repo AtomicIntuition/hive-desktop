@@ -1,7 +1,7 @@
 import { useState, useCallback } from "react";
 import { cn } from "@/lib/utils";
 import { useWorkflowEditorStore } from "@/stores/workflow-editor-store";
-import { fixWorkflow, auditWorkflow } from "@/lib/runtime-client";
+import { fixWorkflow, auditWorkflow, updateWorkflow } from "@/lib/runtime-client";
 import {
   X,
   Shield,
@@ -25,13 +25,17 @@ export function AuditModal() {
   const description = useWorkflowEditorStore((s) => s.description);
   const trigger = useWorkflowEditorStore((s) => s.trigger);
   const replaceAllFromJson = useWorkflowEditorStore((s) => s.replaceAllFromJson);
+  const original = useWorkflowEditorStore((s) => s.original);
+  const markSaved = useWorkflowEditorStore((s) => s.markSaved);
 
   const [fixing, setFixing] = useState(false);
   const [fixChanges, setFixChanges] = useState<string[] | null>(null);
+  const [fixChecklist, setFixChecklist] = useState<Array<{ message: string; fixed: boolean }> | null>(null);
 
   const handleClose = useCallback(() => {
     setAuditResult(null);
     setFixChanges(null);
+    setFixChecklist(null);
   }, [setAuditResult]);
 
   const handleClickStep = useCallback((stepIndex: number | undefined) => {
@@ -41,12 +45,20 @@ export function AuditModal() {
     toggleStepExpanded(stepId);
     setAuditResult(null);
     setFixChanges(null);
+    setFixChecklist(null);
   }, [steps, setActiveTab, toggleStepExpanded, setAuditResult]);
 
   const handleFix = useCallback(async () => {
     if (!auditResult) return;
     setFixing(true);
     setFixChanges(null);
+    setFixChecklist(null);
+
+    // Snapshot previous issues for checklist comparison
+    const previousIssues = [
+      ...auditResult.issues.map((i) => i.message),
+      ...auditResult.suggestions.map((s) => s.message),
+    ];
 
     try {
       const result = await fixWorkflow(
@@ -63,6 +75,21 @@ export function AuditModal() {
         steps: result.steps as ReturnType<typeof useWorkflowEditorStore.getState>["steps"],
       });
 
+      // Auto-save to DB so fixes persist
+      if (original) {
+        try {
+          const saved = await updateWorkflow(original.id, {
+            name: result.name,
+            description: result.description,
+            trigger: JSON.stringify(result.trigger),
+            steps: JSON.stringify(result.steps),
+          });
+          markSaved(saved);
+        } catch {
+          // Save failed — changes are still in editor, user can save manually
+        }
+      }
+
       setFixChanges(result.changes);
 
       // Re-audit the fixed workflow
@@ -74,13 +101,24 @@ export function AuditModal() {
         steps: result.steps,
       });
       setAuditResult(newAudit);
+
+      // Build checklist by comparing previous issues to new ones
+      const newMessages = new Set([
+        ...newAudit.issues.map((i) => i.message),
+        ...newAudit.suggestions.map((s) => s.message),
+      ]);
+      const checklist = previousIssues.map((msg) => ({
+        message: msg,
+        fixed: !newMessages.has(msg),
+      }));
+      setFixChecklist(checklist);
     } catch {
       setFixChanges(["Fix failed — try manually editing the issues"]);
     } finally {
       setFixing(false);
       setAuditing(false);
     }
-  }, [auditResult, name, description, trigger, steps, replaceAllFromJson, setAuditing, setAuditResult]);
+  }, [auditResult, name, description, trigger, steps, replaceAllFromJson, setAuditing, setAuditResult, original, markSaved]);
 
   if (!auditResult && !auditing) return null;
 
@@ -150,8 +188,34 @@ export function AuditModal() {
               </div>
             </div>
 
-            {/* Fix Changes (shown after a fix was applied) */}
-            {fixChanges && fixChanges.length > 0 && (
+            {/* Fix Checklist (shown after a fix was applied) */}
+            {fixChecklist && fixChecklist.length > 0 && (
+              <div className="border-b border-white/[0.06] px-6 py-3 bg-emerald-500/[0.03]">
+                <div className="flex items-center gap-1.5 mb-2">
+                  <Check className="h-3.5 w-3.5 text-emerald-400" />
+                  <span className="text-xs font-medium text-emerald-400">
+                    Fix results — {fixChecklist.filter((c) => c.fixed).length}/{fixChecklist.length} resolved
+                  </span>
+                </div>
+                <ul className="space-y-1">
+                  {fixChecklist.map((item, i) => (
+                    <li key={i} className="flex items-start gap-1.5 text-xs pl-2">
+                      {item.fixed ? (
+                        <Check className="h-3 w-3 text-emerald-400 mt-0.5 shrink-0" />
+                      ) : (
+                        <AlertCircle className="h-3 w-3 text-amber-400 mt-0.5 shrink-0" />
+                      )}
+                      <span className={item.fixed ? "text-gray-500 line-through" : "text-gray-300"}>
+                        {item.message}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {/* Fix Changes descriptions */}
+            {fixChanges && fixChanges.length > 0 && !fixChecklist && (
               <div className="border-b border-white/[0.06] px-6 py-3 bg-emerald-500/[0.03]">
                 <div className="flex items-center gap-1.5 mb-2">
                   <Check className="h-3.5 w-3.5 text-emerald-400" />

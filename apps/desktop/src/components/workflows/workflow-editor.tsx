@@ -32,6 +32,7 @@ import {
   Key,
   Sparkles,
   Send,
+  Dices,
 } from "lucide-react";
 
 interface WorkflowEditorProps {
@@ -79,6 +80,10 @@ export function WorkflowEditor({ workflowId, onBack }: WorkflowEditorProps) {
   const [aiPrompt, setAiPrompt] = useState("");
   const [aiModifying, setAiModifying] = useState(false);
   const [aiChanges, setAiChanges] = useState<string[] | null>(null);
+  const [reimagining, setReimagining] = useState(false);
+
+  const heldSteps = useWorkflowEditorStore((s) => s.heldSteps);
+  const clearHeld = useWorkflowEditorStore((s) => s.clearHeld);
 
   // WebSocket for live runs
   useWebSocketEditor();
@@ -248,6 +253,35 @@ export function WorkflowEditor({ workflowId, onBack }: WorkflowEditorProps) {
     }
   }, [aiPrompt, aiModifying, name, description, trigger, steps, store]);
 
+  // Dice reimagine
+  const handleReimagine = useCallback(async () => {
+    if (reimagining) return;
+    setReimagining(true);
+    setAiChanges(null);
+    setError(null);
+
+    try {
+      const heldStepData = steps.filter((s) => heldSteps.has(s.id));
+      const prompt = heldStepData.length > 0
+        ? `Reimagine this workflow. Keep these steps exactly as they are: ${JSON.stringify(heldStepData)}. Replace all other steps with creative new approaches to achieve the same goal.`
+        : "Completely reimagine this workflow. Keep the same goal but design entirely new steps with a fresh approach.";
+
+      const result = await modifyWorkflow({ name, description, trigger, steps }, prompt);
+      store.replaceAllFromJson({
+        name: result.name,
+        description: result.description,
+        trigger: result.trigger as typeof trigger,
+        steps: result.steps as typeof steps,
+      });
+      setAiChanges(result.changes);
+      clearHeld();
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setReimagining(false);
+    }
+  }, [reimagining, steps, heldSteps, name, description, trigger, store, clearHeld]);
+
   // Navigate away guard
   const handleBack = useCallback(() => {
     if (dirty) {
@@ -415,6 +449,21 @@ export function WorkflowEditor({ workflowId, onBack }: WorkflowEditorProps) {
         >
           {auditing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Shield className="h-4 w-4" />}
           AI Audit
+        </button>
+
+        <button
+          onClick={handleReimagine}
+          disabled={reimagining || steps.length === 0}
+          className="relative flex items-center gap-1.5 rounded-lg border border-white/[0.06] px-3 py-2 text-sm font-medium text-gray-300 hover:border-amber-500/30 hover:text-amber-300 disabled:opacity-50"
+          title={heldSteps.size > 0 ? `Reimagine (${heldSteps.size} held)` : "Reimagine workflow"}
+        >
+          {reimagining ? <Loader2 className="h-4 w-4 animate-spin" /> : <Dices className="h-4 w-4" />}
+          Dice
+          {heldSteps.size > 0 && (
+            <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-amber-500/20 px-1 text-[10px] font-bold text-amber-400">
+              {heldSteps.size}
+            </span>
+          )}
         </button>
 
         <div className="w-px h-5 bg-white/[0.06] mx-1" />

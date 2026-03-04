@@ -495,6 +495,49 @@ describe("WorkflowEditorStore", () => {
     });
   });
 
+  // ── Held Steps ──────────────────────────────────────
+
+  describe("held steps", () => {
+    it("toggleHeld adds step to held set", () => {
+      useWorkflowEditorStore.getState().load(makeWorkflow());
+      useWorkflowEditorStore.getState().toggleHeld("s1");
+      expect(useWorkflowEditorStore.getState().heldSteps.has("s1")).toBe(true);
+    });
+
+    it("toggleHeld removes step when already held", () => {
+      useWorkflowEditorStore.getState().load(makeWorkflow());
+      useWorkflowEditorStore.getState().toggleHeld("s1");
+      useWorkflowEditorStore.getState().toggleHeld("s1");
+      expect(useWorkflowEditorStore.getState().heldSteps.has("s1")).toBe(false);
+    });
+
+    it("clearHeld empties the held set", () => {
+      useWorkflowEditorStore.getState().load(makeWorkflow());
+      useWorkflowEditorStore.getState().toggleHeld("s1");
+      useWorkflowEditorStore.getState().toggleHeld("s2");
+      expect(useWorkflowEditorStore.getState().heldSteps.size).toBe(2);
+
+      useWorkflowEditorStore.getState().clearHeld();
+      expect(useWorkflowEditorStore.getState().heldSteps.size).toBe(0);
+    });
+
+    it("load resets held steps", () => {
+      useWorkflowEditorStore.getState().load(makeWorkflow());
+      useWorkflowEditorStore.getState().toggleHeld("s1");
+
+      useWorkflowEditorStore.getState().load(makeWorkflow({ id: "wf-2" }));
+      expect(useWorkflowEditorStore.getState().heldSteps.size).toBe(0);
+    });
+
+    it("reset clears held steps", () => {
+      useWorkflowEditorStore.getState().load(makeWorkflow());
+      useWorkflowEditorStore.getState().toggleHeld("s1");
+
+      useWorkflowEditorStore.getState().reset();
+      expect(useWorkflowEditorStore.getState().heldSteps.size).toBe(0);
+    });
+  });
+
   // ── Reset ───────────────────────────────────────────
 
   describe("reset", () => {

@@ -138,6 +138,26 @@ describe("StepEditorPanel", () => {
     expect(steps[1].id).toBe("s1");
   });
 
+  it("shows hold toggle buttons on each step", () => {
+    render(<StepEditorPanel />);
+    const holdButtons = document.querySelectorAll('[title="Hold step"]');
+    expect(holdButtons.length).toBe(4);
+  });
+
+  it("clicking hold toggle marks step as held", () => {
+    render(<StepEditorPanel />);
+    const holdButtons = document.querySelectorAll('[title="Hold step"]');
+    fireEvent.click(holdButtons[0]);
+    expect(useWorkflowEditorStore.getState().heldSteps.has("s1")).toBe(true);
+  });
+
+  it("held step shows unhold button", () => {
+    useWorkflowEditorStore.getState().toggleHeld("s1");
+    render(<StepEditorPanel />);
+    const unholdButtons = document.querySelectorAll('[title="Unhold step"]');
+    expect(unholdButtons.length).toBe(1);
+  });
+
   it("first step has move up disabled", () => {
     render(<StepEditorPanel />);
     const moveUpButtons = document.querySelectorAll('[title="Move up"]');

@@ -39,6 +39,7 @@ interface WorkflowEditorState {
   // UI state
   dirty: boolean;
   expandedSteps: Set<string>;
+  heldSteps: Set<string>;
   activeTab: "editor" | "runs" | "json";
   saving: boolean;
 
@@ -73,6 +74,10 @@ interface WorkflowEditorState {
   updateStepStatus: (detail: WorkflowRunStepDetail) => void;
   completeActiveRun: (status: "completed" | "failed") => void;
   clearActiveRun: () => void;
+
+  // Hold actions
+  toggleHeld: (stepId: string) => void;
+  clearHeld: () => void;
 
   // Audit actions
   setAuditResult: (result: WorkflowAuditResult | null) => void;
@@ -119,6 +124,7 @@ const initialState = {
   historyIndex: -1,
   dirty: false,
   expandedSteps: new Set<string>(),
+  heldSteps: new Set<string>(),
   activeTab: "editor" as const,
   saving: false,
   activeRun: null as ActiveRun | null,
@@ -146,6 +152,7 @@ export const useWorkflowEditorStore = create<WorkflowEditorState>((set, get) => 
       historyIndex: 0,
       dirty: false,
       expandedSteps: new Set<string>(),
+      heldSteps: new Set<string>(),
       activeTab: "editor",
       saving: false,
       activeRun: null,
@@ -361,6 +368,19 @@ export const useWorkflowEditorStore = create<WorkflowEditorState>((set, get) => 
   },
 
   clearActiveRun: () => set({ activeRun: null }),
+
+  // Holds
+  toggleHeld: (stepId) => {
+    const state = get();
+    const held = new Set(state.heldSteps);
+    if (held.has(stepId)) {
+      held.delete(stepId);
+    } else {
+      held.add(stepId);
+    }
+    set({ heldSteps: held });
+  },
+  clearHeld: () => set({ heldSteps: new Set() }),
 
   // Audit
   setAuditResult: (result) => set({ auditResult: result }),
