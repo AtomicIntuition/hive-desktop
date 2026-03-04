@@ -65,7 +65,7 @@ export async function vaultRoutes(app: FastifyInstance): Promise<void> {
   app.get<{ Params: { id: string } }>("/api/vault/:id/verify", async (request, reply) => {
     const db = getDb();
     const row = db.prepare("SELECT encrypted_value, iv FROM credentials WHERE id = ?").get(request.params.id) as
-      | { encrypted_value: Buffer; iv: Buffer }
+      | { encrypted_value: Uint8Array; iv: Uint8Array }
       | undefined;
 
     if (!row) return reply.status(404).send({ error: "Credential not found" });

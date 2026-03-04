@@ -15,7 +15,7 @@ interface AppState {
 export const useAppStore = create<AppState>((set) => ({
   runtimeConnected: false,
   runtimePort: 45678,
-  appVersion: "0.2.0",
+  appVersion: "0.2.1",
   sidebarCollapsed: false,
   setRuntimeConnected: (connected) => set({ runtimeConnected: connected }),
   setRuntimePort: (port) => set({ runtimePort: port }),

@@ -1,13 +1,13 @@
 {
   "$schema": "https://raw.githubusercontent.com/nicedoc/tauri/v2/crates/tauri-utils/schema/config.schema.json",
   "productName": "Hive Desktop",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "identifier": "ai.hive.desktop",
   "build": {
     "frontendDist": "../dist",
     "devUrl": "http://localhost:1420",
     "beforeDevCommand": "pnpm dev",
-    "beforeBuildCommand": "pnpm build"
+    "beforeBuildCommand": "pnpm build && pnpm --filter @hive-desktop/runtime run build:bundle && cp ../../packages/runtime/dist/runtime-bundle.mjs src-tauri/runtime-bundle.mjs"
   },
   "app": {
     "withGlobalTauri": true,
@@ -49,14 +49,17 @@
     "macOS": {
       "minimumSystemVersion": "10.15"
     },
-    "createUpdaterArtifacts": true
+    "createUpdaterArtifacts": false,
+    "resources": [
+      "runtime-bundle.mjs"
+    ]
   },
   "plugins": {
     "updater": {
       "endpoints": [
         "https://github.com/AtomicIntuition/hive-desktop/releases/latest/download/latest.json"
       ],
-      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDdDNkE2MzI4MUNDQjVDRjkKUldUNVhNc2NLR05xZkFhemdwcWpLZjZwSWpyTUVJWFcyZXFSVFlYbTQ5TzVJOGNjMHNtTXBoOTEK"
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXkgNzY5NzVEODk0QTlCNDlDQgpSV1RMU1p0S2lWMlhkaXJhYzgzek5KVWVVOFE4NUs5dUdHY3dUWG53N0hzY0Y2YTJEbkYzQWZxRQo="
     }
   }
 }

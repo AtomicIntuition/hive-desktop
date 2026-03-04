@@ -35,17 +35,17 @@ export function encrypt(plaintext: string): { encrypted: Buffer; iv: Buffer } {
   return { encrypted, iv };
 }
 
-export function decrypt(encrypted: Buffer, iv: Buffer): string {
+export function decrypt(encrypted: Uint8Array, iv: Uint8Array): string {
   const key = getKey();
 
   // Auth tag is the last 16 bytes
   const authTag = encrypted.subarray(encrypted.length - AUTH_TAG_LENGTH);
   const ciphertext = encrypted.subarray(0, encrypted.length - AUTH_TAG_LENGTH);
 
-  const decipher = createDecipheriv(ALGORITHM, key, iv, { authTagLength: AUTH_TAG_LENGTH });
-  decipher.setAuthTag(authTag);
+  const decipher = createDecipheriv(ALGORITHM, key, Buffer.from(iv), { authTagLength: AUTH_TAG_LENGTH });
+  decipher.setAuthTag(Buffer.from(authTag));
 
-  return decipher.update(ciphertext) + decipher.final("utf8");
+  return decipher.update(Buffer.from(ciphertext)) + decipher.final("utf8");
 }
 
 // ── Credential helpers for MCP server env injection ────
@@ -53,7 +53,7 @@ export function decrypt(encrypted: Buffer, iv: Buffer): string {
 export function getCredentialValue(id: string): string | null {
   const db = getDb();
   const row = db.prepare("SELECT encrypted_value, iv FROM credentials WHERE id = ?").get(id) as
-    | { encrypted_value: Buffer; iv: Buffer }
+    | { encrypted_value: Uint8Array; iv: Uint8Array }
     | undefined;
   if (!row) return null;
   return decrypt(row.encrypted_value, row.iv);
@@ -63,7 +63,7 @@ export function getCredentialsForServer(serverSlug: string): Record<string, stri
   const db = getDb();
   const rows = db
     .prepare("SELECT id, name, encrypted_value, iv FROM credentials WHERE server_slug = ?")
-    .all(serverSlug) as Array<{ id: string; name: string; encrypted_value: Buffer; iv: Buffer }>;
+    .all(serverSlug) as Array<{ id: string; name: string; encrypted_value: Uint8Array; iv: Uint8Array }>;
 
   const env: Record<string, string> = {};
   for (const row of rows) {
@@ -80,7 +80,7 @@ export function getAllCredentialsAsEnv(): Record<string, string> {
   const db = getDb();
   const rows = db
     .prepare("SELECT name, encrypted_value, iv FROM credentials")
-    .all() as Array<{ name: string; encrypted_value: Buffer; iv: Buffer }>;
+    .all() as Array<{ name: string; encrypted_value: Uint8Array; iv: Uint8Array }>;
 
   const env: Record<string, string> = {};
   for (const row of rows) {

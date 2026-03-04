@@ -50,7 +50,7 @@ export async function workflowRoutes(app: FastifyInstance): Promise<void> {
     async (request, reply) => {
       const db = getDb();
       const updates: string[] = ["updated_at = datetime('now')"];
-      const values: unknown[] = [];
+      const values: Array<string | number | null> = [];
 
       for (const [key, value] of Object.entries(request.body)) {
         if (value !== undefined) {
