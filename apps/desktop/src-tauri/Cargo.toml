@@ -1,6 +1,6 @@
 [package]
 name = "hive-desktop"
-version = "0.2.1"
+version = "0.3.0"
 description = "Local AI Agent Workflow Runtime"
 authors = ["Hive"]
 edition = "2021"

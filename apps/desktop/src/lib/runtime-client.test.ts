@@ -16,7 +16,7 @@ describe("runtime-client", () => {
     it("returns health data on success", async () => {
       mockFetch.mockResolvedValueOnce({
         ok: true,
-        json: () => Promise.resolve({ status: "ok", version: "0.2.1", uptime: 100, servers: { running: 2 } }),
+        json: () => Promise.resolve({ status: "ok", version: "0.3.0", uptime: 100, servers: { running: 2 } }),
       });
 
       const result = await checkHealth();

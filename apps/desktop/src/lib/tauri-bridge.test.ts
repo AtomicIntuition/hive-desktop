@@ -22,9 +22,9 @@ describe("tauri-bridge", () => {
   });
 
   it("getAppVersion invokes correct command", async () => {
-    mockInvoke.mockResolvedValue("0.2.1");
+    mockInvoke.mockResolvedValue("0.3.0");
     const result = await getAppVersion();
-    expect(result).toBe("0.2.1");
+    expect(result).toBe("0.3.0");
     expect(mockInvoke).toHaveBeenCalledWith("get_app_version");
   });
 

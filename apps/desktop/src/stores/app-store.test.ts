@@ -6,7 +6,7 @@ describe("useAppStore", () => {
     useAppStore.setState({
       runtimeConnected: false,
       runtimePort: 45678,
-      appVersion: "0.2.1",
+      appVersion: "0.3.0",
       sidebarCollapsed: false,
     });
   });
@@ -15,7 +15,7 @@ describe("useAppStore", () => {
     const state = useAppStore.getState();
     expect(state.runtimeConnected).toBe(false);
     expect(state.runtimePort).toBe(45678);
-    expect(state.appVersion).toBe("0.2.1");
+    expect(state.appVersion).toBe("0.3.0");
     expect(state.sidebarCollapsed).toBe(false);
   });
 
