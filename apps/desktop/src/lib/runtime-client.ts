@@ -6,6 +6,7 @@ import type {
   Workflow,
   WorkflowRun,
   WorkflowAuditResult,
+  WorkflowAuditItem,
   Credential,
   MarketTool,
   MarketCategory,
@@ -299,5 +300,26 @@ export async function auditWorkflow(workflow: {
   return request("/api/ai/audit-workflow", {
     method: "POST",
     body: JSON.stringify({ workflow }),
+  });
+}
+
+export async function fixWorkflow(
+  workflow: { name: string; description: string; trigger: unknown; steps: unknown[] },
+  issues: WorkflowAuditItem[],
+  suggestions: WorkflowAuditItem[]
+): Promise<{ name: string; description: string; trigger: unknown; steps: unknown[]; changes: string[] }> {
+  return request("/api/ai/fix-workflow", {
+    method: "POST",
+    body: JSON.stringify({ workflow, issues, suggestions }),
+  });
+}
+
+export async function modifyWorkflow(
+  workflow: { name: string; description: string; trigger: unknown; steps: unknown[] },
+  prompt: string
+): Promise<{ name: string; description: string; trigger: unknown; steps: unknown[]; changes: string[] }> {
+  return request("/api/ai/modify-workflow", {
+    method: "POST",
+    body: JSON.stringify({ workflow, prompt }),
   });
 }

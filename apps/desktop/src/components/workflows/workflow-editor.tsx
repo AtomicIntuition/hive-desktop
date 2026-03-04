@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { cn } from "@/lib/utils";
 import { useWorkflowEditorStore } from "@/stores/workflow-editor-store";
 import { useWebSocketEditor } from "@/hooks/use-websocket-editor";
@@ -8,8 +8,10 @@ import {
   deleteWorkflow,
   runWorkflow,
   auditWorkflow,
+  getMarketTool,
+  modifyWorkflow,
 } from "@/lib/runtime-client";
-import type { Workflow, WorkflowTrigger } from "@hive-desktop/shared";
+import type { Workflow, WorkflowTrigger, ServerEnvVar } from "@hive-desktop/shared";
 import { StepEditorPanel } from "./step-editor";
 import { DataFlowPanel } from "./data-flow-panel";
 import { JsonEditorTab } from "./json-editor";
@@ -27,6 +29,9 @@ import {
   Loader2,
   AlertCircle,
   Check,
+  Key,
+  Sparkles,
+  Send,
 } from "lucide-react";
 
 interface WorkflowEditorProps {
@@ -70,6 +75,10 @@ export function WorkflowEditor({ workflowId, onBack }: WorkflowEditorProps) {
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [discardConfirmOpen, setDiscardConfirmOpen] = useState(false);
+  const [envVars, setEnvVars] = useState<Array<{ name: string; description: string; server: string; required: boolean }>>([]);
+  const [aiPrompt, setAiPrompt] = useState("");
+  const [aiModifying, setAiModifying] = useState(false);
+  const [aiChanges, setAiChanges] = useState<string[] | null>(null);
 
   // WebSocket for live runs
   useWebSocketEditor();
@@ -89,6 +98,37 @@ export function WorkflowEditor({ workflowId, onBack }: WorkflowEditorProps) {
 
     return () => { reset(); };
   }, [workflowId, load, reset]);
+
+  // Fetch env var requirements for MCP servers used in steps
+  const serverSlugs = useMemo(
+    () => [...new Set(steps.filter((s) => s.type === "mcp_call" && s.server).map((s) => s.server!))],
+    [steps]
+  );
+
+  useEffect(() => {
+    if (serverSlugs.length === 0) { setEnvVars([]); return; }
+    let cancelled = false;
+
+    const fetchEnvVars = async () => {
+      const vars: Array<{ name: string; description: string; server: string; required: boolean }> = [];
+      for (const slug of serverSlugs) {
+        try {
+          const tool = await getMarketTool(slug);
+          if (tool.envVars) {
+            for (const v of tool.envVars) {
+              vars.push({ name: v.name, description: v.description, server: slug, required: v.required });
+            }
+          }
+        } catch {
+          // Tool not found in market — skip
+        }
+      }
+      if (!cancelled) setEnvVars(vars);
+    };
+
+    fetchEnvVars();
+    return () => { cancelled = true; };
+  }, [serverSlugs.join(",")]);
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -184,6 +224,30 @@ export function WorkflowEditor({ workflowId, onBack }: WorkflowEditorProps) {
     setDeleteConfirmOpen(false);
   }, [workflowId, onBack]);
 
+  // AI Modify
+  const handleAiModify = useCallback(async () => {
+    if (!aiPrompt.trim() || aiModifying) return;
+    setAiModifying(true);
+    setAiChanges(null);
+    setError(null);
+
+    try {
+      const result = await modifyWorkflow({ name, description, trigger, steps }, aiPrompt);
+      store.replaceAllFromJson({
+        name: result.name,
+        description: result.description,
+        trigger: result.trigger as typeof trigger,
+        steps: result.steps as typeof steps,
+      });
+      setAiChanges(result.changes);
+      setAiPrompt("");
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setAiModifying(false);
+    }
+  }, [aiPrompt, aiModifying, name, description, trigger, steps, store]);
+
   // Navigate away guard
   const handleBack = useCallback(() => {
     if (dirty) {
@@ -264,6 +328,29 @@ export function WorkflowEditor({ workflowId, onBack }: WorkflowEditorProps) {
         />
       </div>
 
+      {/* Required env vars banner */}
+      {envVars.length > 0 && (
+        <div className="mb-4 rounded-xl border border-amber-500/20 bg-amber-500/[0.03] p-4">
+          <div className="flex items-center gap-2 mb-2">
+            <Key className="h-4 w-4 text-amber-400" />
+            <span className="text-sm font-medium text-amber-300">Required API Keys</span>
+            <span className="text-xs text-gray-500">Add these in Vault before running</span>
+          </div>
+          <div className="space-y-1.5">
+            {envVars.map((v) => (
+              <div key={`${v.server}-${v.name}`} className="flex items-center gap-2">
+                <code className="rounded bg-gray-800/50 px-1.5 py-0.5 font-mono text-xs text-amber-300">{v.name}</code>
+                <span className="flex-1 text-xs text-gray-500 truncate">{v.description}</span>
+                <span className="text-[10px] text-gray-600 font-mono shrink-0">{v.server}</span>
+                {v.required && (
+                  <span className="rounded-full bg-red-500/10 px-1.5 py-0.5 text-[10px] text-red-400 shrink-0">required</span>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Trigger editor */}
       <TriggerEditor trigger={trigger} onChange={setTrigger} />
 
@@ -339,6 +426,43 @@ export function WorkflowEditor({ workflowId, onBack }: WorkflowEditorProps) {
         >
           <Trash2 className="h-4 w-4" />
         </button>
+      </div>
+
+      {/* AI Modify Prompt */}
+      <div className="mb-4 rounded-xl border border-white/[0.06] bg-gray-900/50 overflow-hidden">
+        <div className="flex items-center gap-2 px-3 py-2">
+          <Sparkles className="h-4 w-4 text-violet-400 shrink-0" />
+          <input
+            type="text"
+            value={aiPrompt}
+            onChange={(e) => setAiPrompt(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleAiModify(); } }}
+            placeholder="Ask AI to modify this workflow..."
+            disabled={aiModifying}
+            className="flex-1 bg-transparent text-sm text-gray-200 outline-none placeholder-gray-600 disabled:opacity-50"
+          />
+          <button
+            onClick={handleAiModify}
+            disabled={!aiPrompt.trim() || aiModifying}
+            className="rounded-lg p-1.5 text-gray-500 hover:text-violet-300 disabled:opacity-30 transition-colors"
+          >
+            {aiModifying ? <Loader2 className="h-4 w-4 animate-spin text-violet-400" /> : <Send className="h-4 w-4" />}
+          </button>
+        </div>
+        {aiChanges && aiChanges.length > 0 && (
+          <div className="border-t border-white/[0.04] px-3 py-2 bg-violet-500/[0.03]">
+            <div className="flex items-center gap-1.5 mb-1">
+              <Check className="h-3.5 w-3.5 text-emerald-400" />
+              <span className="text-xs font-medium text-emerald-400">Changes applied</span>
+              <button onClick={() => setAiChanges(null)} className="ml-auto text-gray-600 hover:text-gray-400 text-xs">dismiss</button>
+            </div>
+            <ul className="space-y-0.5">
+              {aiChanges.map((change, i) => (
+                <li key={i} className="text-xs text-gray-400 pl-5">{change}</li>
+              ))}
+            </ul>
+          </div>
+        )}
       </div>
 
       {/* Error */}

@@ -1,7 +1,12 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import { AuditModal } from "./audit-modal";
 import { useWorkflowEditorStore } from "@/stores/workflow-editor-store";
+
+vi.mock("@/lib/runtime-client", () => ({
+  fixWorkflow: vi.fn(),
+  auditWorkflow: vi.fn(),
+}));
 
 describe("AuditModal", () => {
   beforeEach(() => {
@@ -119,6 +124,30 @@ describe("AuditModal", () => {
 
     render(<AuditModal />);
     expect(screen.getByText("Go to step 1")).toBeDefined();
+  });
+
+  it("shows Fix Issues button when there are issues", () => {
+    useWorkflowEditorStore.getState().setAuditResult({
+      score: 50,
+      summary: "Issues found.",
+      issues: [{ severity: "warning", message: "Missing error handling" }],
+      suggestions: [],
+    });
+
+    render(<AuditModal />);
+    expect(screen.getByText("Fix Issues")).toBeDefined();
+  });
+
+  it("does not show Fix Issues button when score is perfect", () => {
+    useWorkflowEditorStore.getState().setAuditResult({
+      score: 100,
+      summary: "Perfect.",
+      issues: [],
+      suggestions: [],
+    });
+
+    render(<AuditModal />);
+    expect(screen.queryByText("Fix Issues")).toBeNull();
   });
 
   it("close button clears audit result", () => {

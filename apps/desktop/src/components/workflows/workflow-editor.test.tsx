@@ -9,10 +9,13 @@ vi.mock("@/lib/runtime-client", () => ({
   deleteWorkflow: vi.fn(),
   runWorkflow: vi.fn(),
   auditWorkflow: vi.fn(),
+  fixWorkflow: vi.fn(),
+  modifyWorkflow: vi.fn(),
   listWorkflowRuns: vi.fn(),
   getWorkflowRun: vi.fn(),
   listServers: vi.fn().mockResolvedValue([]),
   listServerTools: vi.fn().mockResolvedValue({ tools: [] }),
+  getMarketTool: vi.fn().mockRejectedValue(new Error("not found")),
 }));
 
 vi.mock("@/hooks/use-websocket-editor", () => ({
@@ -32,6 +35,7 @@ import {
   deleteWorkflow,
   runWorkflow,
   auditWorkflow,
+  modifyWorkflow,
   listWorkflowRuns,
 } from "@/lib/runtime-client";
 
@@ -40,6 +44,7 @@ const mockUpdateWorkflow = vi.mocked(updateWorkflow);
 const mockDeleteWorkflow = vi.mocked(deleteWorkflow);
 const mockRunWorkflow = vi.mocked(runWorkflow);
 const mockAuditWorkflow = vi.mocked(auditWorkflow);
+const mockModifyWorkflow = vi.mocked(modifyWorkflow);
 const mockListRuns = vi.mocked(listWorkflowRuns);
 
 const testWorkflow = {
@@ -247,6 +252,44 @@ describe("WorkflowEditor", () => {
     await waitFor(() => {
       expect(mockDeleteWorkflow).toHaveBeenCalledWith("wf-1");
       expect(onBack).toHaveBeenCalled();
+    });
+  });
+
+  it("shows AI modify prompt input", async () => {
+    mockGetWorkflow.mockResolvedValue(testWorkflow);
+    render(<WorkflowEditor workflowId="wf-1" onBack={onBack} />);
+
+    await waitFor(() => {
+      expect(screen.getByPlaceholderText("Ask AI to modify this workflow...")).toBeDefined();
+    });
+  });
+
+  it("calls modifyWorkflow when submitting AI prompt", async () => {
+    mockGetWorkflow.mockResolvedValue(testWorkflow);
+    mockModifyWorkflow.mockResolvedValue({
+      name: "Updated Monitor",
+      description: "Updated desc",
+      trigger: { type: "manual" },
+      steps: testWorkflow.steps,
+      changes: ["Renamed workflow"],
+    });
+    render(<WorkflowEditor workflowId="wf-1" onBack={onBack} />);
+
+    await waitFor(() => {
+      expect(screen.getByPlaceholderText("Ask AI to modify this workflow...")).toBeDefined();
+    });
+
+    const input = screen.getByPlaceholderText("Ask AI to modify this workflow...");
+    fireEvent.change(input, { target: { value: "Rename this workflow" } });
+    fireEvent.keyDown(input, { key: "Enter" });
+
+    await waitFor(() => {
+      expect(mockModifyWorkflow).toHaveBeenCalled();
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText("Changes applied")).toBeDefined();
+      expect(screen.getByText("Renamed workflow")).toBeDefined();
     });
   });
 });

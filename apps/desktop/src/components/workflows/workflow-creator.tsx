@@ -426,6 +426,14 @@ function WorkflowPlanPreview({ plan, onConfirm, onDiscard, confirming }: PlanPre
         </div>
       )}
 
+      {/* Editor hint */}
+      <div className="border-t border-violet-500/10 px-4 py-3 bg-violet-500/[0.02]">
+        <p className="text-xs text-gray-400">
+          <span className="text-violet-300 font-medium">This is a starting point.</span>{" "}
+          Press <span className="text-gray-300">Create Workflow</span> to open the full editor where you can customize steps, arguments, triggers, and error handling.
+        </p>
+      </div>
+
       {/* Actions */}
       <div className="border-t border-violet-500/10 p-4 flex items-center justify-end gap-2">
         <button
@@ -442,7 +450,7 @@ function WorkflowPlanPreview({ plan, onConfirm, onDiscard, confirming }: PlanPre
           {confirming ? (
             <Loader2 className="h-4 w-4 animate-spin" />
           ) : (
-            <Check className="h-4 w-4" />
+            <ArrowRight className="h-4 w-4" />
           )}
           Create Workflow
         </button>

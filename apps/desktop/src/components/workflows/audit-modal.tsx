@@ -1,5 +1,7 @@
+import { useState, useCallback } from "react";
 import { cn } from "@/lib/utils";
 import { useWorkflowEditorStore } from "@/stores/workflow-editor-store";
+import { fixWorkflow, auditWorkflow } from "@/lib/runtime-client";
 import {
   X,
   Shield,
@@ -8,28 +10,82 @@ import {
   Info,
   Lightbulb,
   Loader2,
+  Wrench,
+  Check,
+  RotateCcw,
 } from "lucide-react";
 import type { WorkflowAuditItem } from "@hive-desktop/shared";
 
 export function AuditModal() {
-  const { auditResult, auditing, setAuditResult } = useWorkflowEditorStore();
+  const { auditResult, auditing, setAuditResult, setAuditing } = useWorkflowEditorStore();
   const toggleStepExpanded = useWorkflowEditorStore((s) => s.toggleStepExpanded);
   const setActiveTab = useWorkflowEditorStore((s) => s.setActiveTab);
   const steps = useWorkflowEditorStore((s) => s.steps);
+  const name = useWorkflowEditorStore((s) => s.name);
+  const description = useWorkflowEditorStore((s) => s.description);
+  const trigger = useWorkflowEditorStore((s) => s.trigger);
+  const replaceAllFromJson = useWorkflowEditorStore((s) => s.replaceAllFromJson);
 
-  if (!auditResult && !auditing) return null;
+  const [fixing, setFixing] = useState(false);
+  const [fixChanges, setFixChanges] = useState<string[] | null>(null);
 
-  const handleClose = () => {
+  const handleClose = useCallback(() => {
     setAuditResult(null);
-  };
+    setFixChanges(null);
+  }, [setAuditResult]);
 
-  const handleClickStep = (stepIndex: number | undefined) => {
+  const handleClickStep = useCallback((stepIndex: number | undefined) => {
     if (stepIndex === undefined || stepIndex < 0 || stepIndex >= steps.length) return;
     const stepId = steps[stepIndex].id;
     setActiveTab("editor");
     toggleStepExpanded(stepId);
-    handleClose();
-  };
+    setAuditResult(null);
+    setFixChanges(null);
+  }, [steps, setActiveTab, toggleStepExpanded, setAuditResult]);
+
+  const handleFix = useCallback(async () => {
+    if (!auditResult) return;
+    setFixing(true);
+    setFixChanges(null);
+
+    try {
+      const result = await fixWorkflow(
+        { name, description, trigger, steps },
+        auditResult.issues,
+        auditResult.suggestions
+      );
+
+      // Apply the fixed workflow to the editor
+      replaceAllFromJson({
+        name: result.name,
+        description: result.description,
+        trigger: result.trigger as ReturnType<typeof useWorkflowEditorStore.getState>["trigger"],
+        steps: result.steps as ReturnType<typeof useWorkflowEditorStore.getState>["steps"],
+      });
+
+      setFixChanges(result.changes);
+
+      // Re-audit the fixed workflow
+      setAuditing(true);
+      const newAudit = await auditWorkflow({
+        name: result.name,
+        description: result.description,
+        trigger: result.trigger,
+        steps: result.steps,
+      });
+      setAuditResult(newAudit);
+    } catch {
+      setFixChanges(["Fix failed — try manually editing the issues"]);
+    } finally {
+      setFixing(false);
+      setAuditing(false);
+    }
+  }, [auditResult, name, description, trigger, steps, replaceAllFromJson, setAuditing, setAuditResult]);
+
+  if (!auditResult && !auditing) return null;
+
+  const hasFixableIssues =
+    auditResult && (auditResult.issues.length > 0 || auditResult.suggestions.length > 0);
 
   const scoreColor =
     !auditResult ? "text-gray-400" :
@@ -66,7 +122,9 @@ export function AuditModal() {
         {auditing && !auditResult && (
           <div className="flex flex-col items-center justify-center py-16">
             <Loader2 className="h-8 w-8 animate-spin text-violet-400" />
-            <p className="mt-3 text-sm text-gray-400">Analyzing workflow...</p>
+            <p className="mt-3 text-sm text-gray-400">
+              {fixing ? "Fixing and re-auditing..." : "Analyzing workflow..."}
+            </p>
           </div>
         )}
 
@@ -77,7 +135,7 @@ export function AuditModal() {
             <div className="flex items-center gap-4 border-b border-white/[0.06] px-6 py-5">
               <div
                 className={cn(
-                  "flex h-16 w-16 items-center justify-center rounded-xl text-2xl font-bold",
+                  "flex h-16 w-16 items-center justify-center rounded-xl text-2xl font-bold shrink-0",
                   scoreBg,
                   scoreColor
                 )}
@@ -91,6 +149,23 @@ export function AuditModal() {
                 <p className="mt-1 text-xs text-gray-400">{auditResult.summary}</p>
               </div>
             </div>
+
+            {/* Fix Changes (shown after a fix was applied) */}
+            {fixChanges && fixChanges.length > 0 && (
+              <div className="border-b border-white/[0.06] px-6 py-3 bg-emerald-500/[0.03]">
+                <div className="flex items-center gap-1.5 mb-2">
+                  <Check className="h-3.5 w-3.5 text-emerald-400" />
+                  <span className="text-xs font-medium text-emerald-400">Changes applied</span>
+                </div>
+                <ul className="space-y-1">
+                  {fixChanges.map((change, i) => (
+                    <li key={i} className="text-xs text-gray-400 pl-5">
+                      {change}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
 
             {/* Issues */}
             {auditResult.issues.length > 0 && (
@@ -132,7 +207,25 @@ export function AuditModal() {
         )}
 
         {/* Footer */}
-        <div className="border-t border-white/[0.06] px-6 py-3 flex justify-end">
+        <div className="border-t border-white/[0.06] px-6 py-3 flex items-center justify-between">
+          <div>
+            {auditResult && hasFixableIssues && (
+              <button
+                onClick={handleFix}
+                disabled={fixing}
+                className="flex items-center gap-1.5 rounded-lg bg-violet-600 px-3 py-2 text-sm font-medium text-white hover:bg-violet-700 disabled:opacity-40"
+              >
+                {fixing ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : fixChanges ? (
+                  <RotateCcw className="h-4 w-4" />
+                ) : (
+                  <Wrench className="h-4 w-4" />
+                )}
+                {fixing ? "Fixing..." : fixChanges ? "Fix Again" : "Fix Issues"}
+              </button>
+            )}
+          </div>
           <button
             onClick={handleClose}
             className="rounded-lg px-4 py-2 text-sm font-medium text-gray-400 hover:text-gray-200"
