@@ -1,7 +1,7 @@
 {
   "$schema": "https://raw.githubusercontent.com/nicedoc/tauri/v2/crates/tauri-utils/schema/config.schema.json",
   "productName": "Hive Desktop",
-  "version": "0.3.2",
+  "version": "0.3.3",
   "identifier": "ai.hive.desktop",
   "build": {
     "frontendDist": "../dist",
