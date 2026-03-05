@@ -29,10 +29,13 @@ export function AppLayout() {
 
   return (
     <div className="flex h-screen bg-gray-950 relative">
-      {/* Honeycomb background texture */}
+      {/* Subtle dot grid background */}
       <div
-        className="fixed inset-0 z-0 bg-cover bg-center pointer-events-none opacity-[0.07]"
-        style={{ backgroundImage: "url('/alex-pavor-VUnjE00FRSA-unsplash.jpg')" }}
+        className="fixed inset-0 z-0 pointer-events-none opacity-40"
+        style={{
+          backgroundImage: "radial-gradient(circle at 1px 1px, rgba(139, 92, 246, 0.15) 1px, transparent 0)",
+          backgroundSize: "24px 24px",
+        }}
       />
       <Sidebar />
       <div

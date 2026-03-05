@@ -19,6 +19,16 @@ import { getAiStatus, planWorkflowAI } from "@/lib/runtime-client";
 const mockGetAiStatus = vi.mocked(getAiStatus);
 const mockPlanWorkflowAI = vi.mocked(planWorkflowAI);
 
+/** Switch to Quick Plan mode and return the quick-plan action button */
+function switchToQuickPlanAndGetButton() {
+  // The mode toggle button text is just "Quick Plan" inside the toggle
+  const modeToggle = screen.getAllByText("Quick Plan")[0];
+  fireEvent.click(modeToggle);
+  // After switching, there are two "Quick Plan" texts: the toggle + the action button
+  // The action button is the second one
+  return screen.getAllByText("Quick Plan")[1];
+}
+
 describe("WorkflowCreator", () => {
   beforeEach(() => {
     mockGetAiStatus.mockReset();
@@ -31,16 +41,19 @@ describe("WorkflowCreator", () => {
     expect(screen.getByText("Create a Workflow")).toBeDefined();
   });
 
-  it("renders NL input textarea", async () => {
+  it("defaults to Agent Build mode with Build with Agent button", async () => {
     mockGetAiStatus.mockResolvedValue({ configured: true, provider: "anthropic", model: "claude-sonnet-4-20250514" });
     render(<WorkflowCreator />);
-    expect(screen.getByPlaceholderText(/Watch my Stripe/)).toBeDefined();
+    expect(screen.getByText("Agent Build")).toBeDefined();
+    expect(screen.getByText("Build with Agent")).toBeDefined();
+    expect(screen.getByPlaceholderText(/Search Brave for AI news/)).toBeDefined();
   });
 
-  it("renders Plan Workflow button", async () => {
+  it("renders Quick Plan textarea after mode switch", async () => {
     mockGetAiStatus.mockResolvedValue({ configured: true, provider: "anthropic", model: "claude-sonnet-4-20250514" });
     render(<WorkflowCreator />);
-    expect(screen.getByText("Plan Workflow")).toBeDefined();
+    fireEvent.click(screen.getAllByText("Quick Plan")[0]);
+    expect(screen.getByPlaceholderText(/Watch my Stripe/)).toBeDefined();
   });
 
   it("renders example prompts", async () => {
@@ -74,11 +87,11 @@ describe("WorkflowCreator", () => {
     });
 
     render(<WorkflowCreator />);
+    const actionButton = switchToQuickPlanAndGetButton();
 
-    // Type a prompt and trigger plan
     const textarea = screen.getByPlaceholderText(/Watch my Stripe/);
     fireEvent.change(textarea, { target: { value: "Test workflow" } });
-    fireEvent.click(screen.getByText("Plan Workflow"));
+    fireEvent.click(actionButton);
 
     await waitFor(() => {
       expect(screen.getByText("Score: 92")).toBeDefined();
@@ -100,10 +113,11 @@ describe("WorkflowCreator", () => {
     });
 
     render(<WorkflowCreator />);
+    const actionButton = switchToQuickPlanAndGetButton();
 
     const textarea = screen.getByPlaceholderText(/Watch my Stripe/);
     fireEvent.change(textarea, { target: { value: "Test workflow" } });
-    fireEvent.click(screen.getByText("Plan Workflow"));
+    fireEvent.click(actionButton);
 
     await waitFor(() => {
       expect(screen.getByText("1 fix pass")).toBeDefined();
@@ -125,10 +139,11 @@ describe("WorkflowCreator", () => {
     });
 
     render(<WorkflowCreator />);
+    const actionButton = switchToQuickPlanAndGetButton();
 
     const textarea = screen.getByPlaceholderText(/Watch my Stripe/);
     fireEvent.change(textarea, { target: { value: "Test workflow" } });
-    fireEvent.click(screen.getByText("Plan Workflow"));
+    fireEvent.click(actionButton);
 
     await waitFor(() => {
       expect(screen.getByText("Score: 65")).toBeDefined();

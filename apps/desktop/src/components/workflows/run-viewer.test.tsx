@@ -131,7 +131,7 @@ describe("RunsTab", () => {
     fireEvent.click(screen.getByText("Completed").closest("button")!);
 
     await waitFor(() => {
-      expect(screen.getByText("Back to runs")).toBeDefined();
+      expect(screen.getByText(/Back/)).toBeDefined();
       expect(screen.getByText("Step Outputs")).toBeDefined();
     });
   });

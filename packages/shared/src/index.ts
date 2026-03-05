@@ -20,6 +20,7 @@ export type {
   MarketStack,
   DashboardStats,
   AppSettings,
+  AgentPlanEvent,
 } from "./types.js";
 
 export type {

@@ -84,7 +84,7 @@ export function WorkflowEditor({ workflowId, onBack }: WorkflowEditorProps) {
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [discardConfirmOpen, setDiscardConfirmOpen] = useState(false);
-  const [envVars, setEnvVars] = useState<Array<{ name: string; description: string; server: string; required: boolean }>>([]);
+  const [envVars, setEnvVars] = useState<Array<{ name: string; description: string; server: string; required: boolean; docsUrl?: string }>>([]);
   const [vaultKeys, setVaultKeys] = useState<Set<string>>(new Set());
   const [aiPrompt, setAiPrompt] = useState("");
   const [aiModifying, setAiModifying] = useState(false);
@@ -125,13 +125,13 @@ export function WorkflowEditor({ workflowId, onBack }: WorkflowEditorProps) {
     let cancelled = false;
 
     const fetchEnvVars = async () => {
-      const vars: Array<{ name: string; description: string; server: string; required: boolean }> = [];
+      const vars: Array<{ name: string; description: string; server: string; required: boolean; docsUrl?: string }> = [];
       for (const slug of serverSlugs) {
         try {
           const tool = await getMarketTool(slug);
           if (tool.envVars) {
             for (const v of tool.envVars) {
-              vars.push({ name: v.name, description: v.description, server: slug, required: v.required });
+              vars.push({ name: v.name, description: v.description, server: slug, required: v.required, docsUrl: v.docsUrl });
             }
           }
         } catch {
@@ -448,7 +448,17 @@ export function WorkflowEditor({ workflowId, onBack }: WorkflowEditorProps) {
                           )}>{v.name}</code>
                           <span className="flex-1 text-[11px] text-gray-500 truncate">{v.description}</span>
                           <span className="text-[10px] text-gray-600 font-mono shrink-0">{v.server}</span>
-                          {!inVault && v.required && (
+                          {!inVault && v.docsUrl && (
+                            <a
+                              href={v.docsUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-[10px] text-violet-400 hover:text-violet-300 shrink-0 transition-colors"
+                            >
+                              Get key &rarr;
+                            </a>
+                          )}
+                          {!inVault && v.required && !v.docsUrl && (
                             <span className="rounded-full bg-red-500/10 px-1.5 py-0.5 text-[10px] text-red-400 shrink-0">missing</span>
                           )}
                         </div>
@@ -630,11 +640,11 @@ export function WorkflowEditor({ workflowId, onBack }: WorkflowEditorProps) {
       {/* Tab content */}
       <div>
         {activeTab === "editor" && (
-          <div className="flex flex-col lg:flex-row gap-4">
-            <div className="flex-1 min-w-0">
+          <div className="flex flex-col lg:flex-row gap-4 overflow-hidden">
+            <div className="flex-1 min-w-0 overflow-hidden">
               <StepEditorPanel />
             </div>
-            <div className="lg:w-80 min-w-0 space-y-4 lg:sticky lg:top-0 lg:self-start">
+            <div className="lg:w-72 lg:shrink-0 min-w-0 space-y-4 lg:sticky lg:top-0 lg:self-start">
               <FlowDiagram
                 steps={steps}
                 activeRun={activeRun}

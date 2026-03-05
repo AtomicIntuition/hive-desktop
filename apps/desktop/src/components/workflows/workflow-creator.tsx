@@ -10,6 +10,8 @@ import {
   ChevronRight,
   Download,
   Settings,
+  Bot,
+  Zap,
 } from "lucide-react";
 import {
   planWorkflowAI,
@@ -21,6 +23,9 @@ import {
 } from "@/lib/runtime-client";
 import type { ServerEnvVar } from "@hive-desktop/shared";
 import { useWorkflows } from "@/hooks/use-workflows";
+import { AgentPlanner } from "./agent-planner";
+
+type PlanMode = "agent" | "quick";
 
 interface WorkflowCreatorProps {
   onCreated?: (id: string) => void;
@@ -35,6 +40,8 @@ export function WorkflowCreator({ onCreated }: WorkflowCreatorProps) {
   const [confirming, setConfirming] = useState(false);
   const [confirmed, setConfirmed] = useState(false);
   const [aiConfigured, setAiConfigured] = useState<boolean | null>(null);
+  const [planMode, setPlanMode] = useState<PlanMode>("agent");
+  const [showAgentPlanner, setShowAgentPlanner] = useState(false);
   const { refresh } = useWorkflows();
 
   useEffect(() => {
@@ -103,6 +110,23 @@ export function WorkflowCreator({ onCreated }: WorkflowCreatorProps) {
     setConfirmed(false);
   };
 
+  const handleAgentCreated = (workflowId: string) => {
+    refresh();
+    setShowAgentPlanner(false);
+    onCreated?.(workflowId);
+  };
+
+  // Agent Planner mode
+  if (showAgentPlanner) {
+    return (
+      <AgentPlanner
+        initialPrompt={input}
+        onWorkflowCreated={handleAgentCreated}
+        onClose={() => setShowAgentPlanner(false)}
+      />
+    );
+  }
+
   return (
     <div className="rounded-xl border border-white/[0.06] bg-gray-900/60 backdrop-blur-sm p-6">
       <div className="mb-4 flex items-center gap-2">
@@ -116,58 +140,129 @@ export function WorkflowCreator({ onCreated }: WorkflowCreatorProps) {
         )}
       </div>
       <p className="mb-4 text-sm text-gray-400">
-        Describe what you want to automate in plain English. AI will design the workflow for you.
+        Describe what you want to automate in plain English. AI will build the workflow for you.
       </p>
 
-      {/* NL Input */}
-      <div
-        className={cn(
-          "relative rounded-lg border transition-colors",
-          focused
-            ? "border-violet-500/50 ring-1 ring-violet-500/25"
-            : "border-white/[0.06]"
-        )}
-      >
-        <textarea
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onFocus={() => setFocused(true)}
-          onBlur={() => setFocused(false)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
-              e.preventDefault();
-              handlePlan();
-            }
-          }}
-          placeholder="e.g., Watch my Stripe and Slack me when a payment over $500 comes in"
-          rows={3}
-          disabled={planning}
-          className="w-full resize-none rounded-lg bg-transparent px-4 py-3 text-sm text-gray-200 placeholder-gray-600 outline-none disabled:opacity-50"
-        />
-        <div className="flex items-center justify-between border-t border-white/[0.04] px-3 py-2">
-          <span className="text-xs text-gray-600">
-            {input.trim() ? "Cmd+Enter to plan" : ""}
-          </span>
-          <button
-            onClick={handlePlan}
-            disabled={!input.trim() || planning || aiConfigured === false}
-            className="flex items-center gap-2 rounded-lg bg-violet-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-violet-700 disabled:opacity-30 disabled:cursor-not-allowed"
-          >
-            {planning ? (
-              <>
-                <Loader2 className="h-4 w-4 animate-spin" />
-                Planning...
-              </>
-            ) : (
-              <>
-                <Sparkles className="h-4 w-4" />
-                Plan Workflow
-                <ArrowRight className="h-4 w-4" />
-              </>
-            )}
-          </button>
-        </div>
+      {/* Mode Toggle */}
+      <div className="mb-4 flex rounded-lg border border-white/[0.06] p-0.5 bg-gray-800/30">
+        <button
+          onClick={() => setPlanMode("agent")}
+          className={cn(
+            "flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-colors flex-1 justify-center",
+            planMode === "agent"
+              ? "bg-violet-600 text-white shadow-sm"
+              : "text-gray-400 hover:text-gray-200"
+          )}
+        >
+          <Bot className="h-3.5 w-3.5" />
+          Agent Build
+          <span className="text-[9px] opacity-60 ml-0.5">Recommended</span>
+        </button>
+        <button
+          onClick={() => setPlanMode("quick")}
+          className={cn(
+            "flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-colors flex-1 justify-center",
+            planMode === "quick"
+              ? "bg-gray-700 text-white shadow-sm"
+              : "text-gray-400 hover:text-gray-200"
+          )}
+        >
+          <Zap className="h-3.5 w-3.5" />
+          Quick Plan
+        </button>
       </div>
+
+      {planMode === "agent" ? (
+        /* Agent Build Input */
+        <div
+          className={cn(
+            "relative rounded-lg border transition-colors",
+            focused
+              ? "border-violet-500/50 ring-1 ring-violet-500/25"
+              : "border-white/[0.06]"
+          )}
+        >
+          <textarea
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onFocus={() => setFocused(true)}
+            onBlur={() => setFocused(false)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+                e.preventDefault();
+                if (input.trim()) setShowAgentPlanner(true);
+              }
+            }}
+            placeholder="e.g., Search Brave for AI news and send me a notification with the top 5 results"
+            rows={3}
+            className="w-full resize-none rounded-lg bg-transparent px-4 py-3 text-sm text-gray-200 placeholder-gray-600 outline-none"
+          />
+          <div className="flex items-center justify-between border-t border-white/[0.04] px-3 py-2">
+            <div className="flex items-center gap-1.5 text-[11px] text-gray-500">
+              <Bot className="h-3 w-3 text-violet-400" />
+              Tests real tools · Verifies data flow · Guaranteed to work
+            </div>
+            <button
+              onClick={() => setShowAgentPlanner(true)}
+              disabled={!input.trim() || aiConfigured === false}
+              className="flex items-center gap-2 rounded-lg bg-violet-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-violet-500 disabled:opacity-30 disabled:cursor-not-allowed"
+            >
+              <Bot className="h-4 w-4" />
+              Build with Agent
+            </button>
+          </div>
+        </div>
+      ) : (
+        /* Quick Plan Input */
+        <div
+          className={cn(
+            "relative rounded-lg border transition-colors",
+            focused
+              ? "border-violet-500/50 ring-1 ring-violet-500/25"
+              : "border-white/[0.06]"
+          )}
+        >
+          <textarea
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onFocus={() => setFocused(true)}
+            onBlur={() => setFocused(false)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+                e.preventDefault();
+                handlePlan();
+              }
+            }}
+            placeholder="e.g., Watch my Stripe and Slack me when a payment over $500 comes in"
+            rows={3}
+            disabled={planning}
+            className="w-full resize-none rounded-lg bg-transparent px-4 py-3 text-sm text-gray-200 placeholder-gray-600 outline-none disabled:opacity-50"
+          />
+          <div className="flex items-center justify-between border-t border-white/[0.04] px-3 py-2">
+            <div className="flex items-center gap-1.5 text-[11px] text-gray-500">
+              <Zap className="h-3 w-3 text-amber-400" />
+              Fast · Single-shot · May need manual fixes
+            </div>
+            <button
+              onClick={handlePlan}
+              disabled={!input.trim() || planning || aiConfigured === false}
+              className="flex items-center gap-2 rounded-lg bg-gray-700 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-gray-600 disabled:opacity-30 disabled:cursor-not-allowed"
+            >
+              {planning ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Planning...
+                </>
+              ) : (
+                <>
+                  <Zap className="h-4 w-4" />
+                  Quick Plan
+                </>
+              )}
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Error */}
       {error && (

@@ -4,6 +4,7 @@ import { nanoid } from "nanoid";
 import { isConfigured, setApiKey, removeApiKey, getClient } from "../ai/provider.js";
 import { planWorkflow } from "../ai/planner.js";
 import type { WorkflowPlan } from "../ai/planner.js";
+import { agentPlanWorkflow } from "../ai/agent-planner.js";
 import { auditWorkflowPlan } from "../ai/auditor.js";
 import { fixWorkflowPlan } from "../ai/fixer.js";
 import { parseFixResponse } from "../ai/fixer.js";
@@ -67,6 +68,60 @@ export async function aiRoutes(app: FastifyInstance): Promise<void> {
       }
 
       return reply.status(500).send({ error: `AI planning failed: ${message}` });
+    }
+  });
+
+  // ── Agent Plan Workflow (SSE) ─────────────────────────
+
+  app.post<{ Body: { prompt: string } }>("/api/ai/agent-plan-workflow", async (request, reply) => {
+    const { prompt } = request.body;
+
+    if (!prompt?.trim()) {
+      return reply.status(400).send({ error: "Prompt is required" });
+    }
+
+    if (!isConfigured()) {
+      return reply.status(400).send({
+        error: "Anthropic API key not configured",
+        message: "Go to Settings and add your Anthropic API key.",
+      });
+    }
+
+    // Set up Server-Sent Events
+    reply.raw.writeHead(200, {
+      "Content-Type": "text/event-stream",
+      "Cache-Control": "no-cache",
+      Connection: "keep-alive",
+      "Access-Control-Allow-Origin": "*",
+    });
+
+    const sendEvent = (event: { type: string; data: Record<string, unknown> }) => {
+      reply.raw.write(`data: ${JSON.stringify(event)}\n\n`);
+    };
+
+    try {
+      const result = await agentPlanWorkflow(prompt, sendEvent);
+
+      // Send the final result with the complete workflow
+      sendEvent({
+        type: "agent:result",
+        data: {
+          name: result.name,
+          description: result.description,
+          trigger: result.trigger as unknown as Record<string, unknown>,
+          steps: result.steps as unknown as Record<string, unknown>,
+          reasoning: result.reasoning,
+          iterations: result.iterations,
+          toolCallCount: result.toolCallCount,
+        },
+      });
+    } catch (err) {
+      sendEvent({
+        type: "agent:error",
+        data: { message: (err as Error).message },
+      });
+    } finally {
+      reply.raw.end();
     }
   });
 

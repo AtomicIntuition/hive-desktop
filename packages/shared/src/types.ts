@@ -23,6 +23,7 @@ export interface ServerEnvVar {
   description: string;
   required: boolean;
   placeholder?: string;
+  docsUrl?: string;
 }
 
 // ── Workflow ────────────────────────────────────────────
@@ -195,6 +196,19 @@ export interface DashboardStats {
   runningServers: number;
   totalRuns: number;
   errorRate: number;
+}
+
+// ── Agent Planner Events ──────────────────────────────
+
+export interface AgentPlanEvent {
+  type:
+    | "agent:thinking"
+    | "agent:tool_call"
+    | "agent:tool_result"
+    | "agent:step_added"
+    | "agent:complete"
+    | "agent:error";
+  data: Record<string, unknown>;
 }
 
 // ── Settings ───────────────────────────────────────────

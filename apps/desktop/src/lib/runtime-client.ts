@@ -11,6 +11,7 @@ import type {
   MarketTool,
   MarketCategory,
   ServerEnvVar,
+  AgentPlanEvent,
 } from "@hive-desktop/shared";
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
@@ -342,4 +343,70 @@ export async function modifyWorkflow(
     method: "POST",
     body: JSON.stringify({ workflow, prompt }),
   });
+}
+
+// ── Agent Plan (SSE) ─────────────────────────────────
+
+export interface AgentPlanResult {
+  name: string;
+  description: string;
+  trigger: unknown;
+  steps: unknown[];
+  reasoning: string;
+  iterations: number;
+  toolCallCount: number;
+}
+
+export async function agentPlanWorkflow(
+  prompt: string,
+  onEvent: (event: AgentPlanEvent) => void,
+  signal?: AbortSignal
+): Promise<AgentPlanResult | null> {
+  const response = await fetch(`${RUNTIME_URL}/api/ai/agent-plan-workflow`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ prompt }),
+    signal,
+  });
+
+  if (!response.ok) {
+    const body = await response.json().catch(() => ({ error: response.statusText }));
+    throw new Error((body as Record<string, string>).error ?? `Request failed: ${response.status}`);
+  }
+
+  const reader = response.body?.getReader();
+  if (!reader) throw new Error("No response body");
+
+  const decoder = new TextDecoder();
+  let buffer = "";
+  let finalResult: AgentPlanResult | null = null;
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+
+    buffer += decoder.decode(value, { stream: true });
+
+    // Parse SSE events from buffer
+    const lines = buffer.split("\n");
+    buffer = lines.pop() ?? ""; // Keep incomplete line in buffer
+
+    for (const line of lines) {
+      if (line.startsWith("data: ")) {
+        try {
+          const event = JSON.parse(line.slice(6)) as AgentPlanEvent;
+          onEvent(event);
+
+          // Capture the final result
+          if (event.type === "agent:result" as string) {
+            finalResult = event.data as unknown as AgentPlanResult;
+          }
+        } catch {
+          // Skip malformed events
+        }
+      }
+    }
+  }
+
+  return finalResult;
 }
